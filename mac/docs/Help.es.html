@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Ayuda de Chordmap for Mac</title><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light dark; --fg: #1d1d1f; --muted: #6e6e73; --bg: #fff; --card: #f5f5f7; --accent: #6b46c1; --line: #e5e5ea; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #f5f5f7; --muted: #a1a1a6; --bg: #1c1c1e; --card: #2c2c2e; --accent: #b794f4; --line: #3a3a3c; } }
+  body { margin: 0; font: 15px/1.55 -apple-system, "SF Pro Text", Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 30px; margin: 0 0 4px; } h1 small { display: block; font-size: 15px; font-weight: 400; color: var(--muted); }
+  h2 { font-size: 20px; margin: 36px 0 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+  h3 { font-size: 16px; margin: 20px 0 6px; } .muted { color: var(--muted); }
+  code, pre { font: 13px ui-monospace, "SF Mono", Menlo, monospace; } pre { background: var(--card); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+  .card { background: var(--card); border-radius: 10px; padding: 14px 16px; margin: 12px 0; } .warn { border-left: 4px solid #d9a400; }
+  nav a { margin-right: 14px; color: var(--accent); text-decoration: none; } a { color: var(--accent); }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; } td, th { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; } th { color: var(--muted); font-weight: 600; font-size: 13px; }
+</style>
+</head><body><main>
+<h1>Chordmap for Mac <small>Pon una canción en el Mac y ve la tonalidad, el tempo, los acordes compás a compás y dónde va la cejilla. Oye; nunca graba. Nada sale del Mac.</small></h1>
+<nav><a href="#start">Primer uso</a><a href="#window">La ventana</a><a href="#capo">Cejilla</a><a href="#history">Historial</a><a href="#input">Con una entrada</a><a href="#limits">Límites</a><a href="#cli">Terminal</a><a href="#privacy">Privacidad</a></nav>
+
+<h2 id="start">Primer uso</h2>
+<p>Abre la app, pulsa el botón grande (o ⌘L) y pon una canción en cualquier app del Mac. macOS pide una vez la grabación de audio del sistema: así llama a oír lo que el Mac reproduce, y sin ese permiso la app no puede funcionar. Concédelo. Cuatro segundos después aparece la primera carta de acordes.</p>
+<div class="card warn">Oír el sonido del propio Mac necesita macOS 14.2 o posterior. En 14.0 y 14.1 elige una entrada en el menú de arriba a la derecha.</div>
+
+<h2 id="window">La ventana</h2>
+<p>Cada dos segundos chordmap, el motor de dentro, vuelve a oír los últimos 24 segundos y la ventana muestra:</p>
+<table>
+<tr><th>Tarjeta</th><th>Qué dice</th></tr>
+<tr><td>Now, Key, Tempo</td><td>El acorde que suena ahora, la tonalidad (con su alternativa cuando el motor duda), el tempo y el compás, 4/4 o 3/4.</td></tr>
+<tr><td>Capo</td><td>Las cuatro mejores posiciones de cejilla, cada una con los segundos de canción que caen en cejillas de dedo, y la elección del motor marcada.</td></tr>
+<tr><td>Compás a compás</td><td>Una ficha por compás, con el acorde de cada tiempo, agrupadas por sección: intro, estrofa, estribillo, puente, final, según las adivina el motor.</td></tr>
+<tr><td>Hoja de acordes</td><td>Al parar, se traza toda la escucha y aparece la hoja de texto de chordmap, con un botón para copiarla (⇧⌘C desde cualquier sitio).</td></tr>
+</table>
+
+<h2 id="capo">Cejilla</h2>
+<p>chordmap puntúa cada traste del 0 al 7 según los segundos de canción que caen en formas difíciles y elige el que menos tiene, así que una canción en Mi bemol vuelve como cejilla en el 3 con Eb → C, Ab → F, Bb → G, Cm → Am. Elige otro traste y cada acorde mostrado pasa a ser la forma que hace tu mano.</p>
+
+<h2 id="history">Historial</h2>
+<p>Al parar, la escucha se guarda con toda su carta bajo "Heard before" en la barra lateral. Haz clic para verla de nuevo, cámbiale el título o bórrala con la papelera. La lista vive en <code>~/Library/Application Support/Chordmap for Mac/listens.json</code>, y solo ahí.</p>
+
+<h2 id="input">Con una entrada</h2>
+<p>El menú de arriba a la derecha lista todas las entradas. Elige una interfaz de audio y toca una guitarra, o pon un micrófono delante de un tocadiscos, y aparece la misma carta. macOS pide una vez el micrófono; no se graba nada.</p>
+
+<h2 id="limits">Límites, con franqueza</h2>
+<ul>
+<li>No sabe cómo se llama la canción. No tiene base de datos; solo oye.</li>
+<li>Una mezcla clara se traza bien. Un muro de distorsión, una voz sola o un ritmo con poca armonía se trazan peor, y el motor marca los tramos de armonía escasa en vez de inventar acordes.</li>
+<li>Acordes mayores y menores y séptimas. Sin suspendidos, disminuidos ni extensiones más allá de la séptima.</li>
+<li>Cuatro segundos es lo mínimo que traza. La vista en directo va unos dos segundos por detrás.</li>
+<li>Por ahora solo Apple Silicon; la versión Intel llegará cuando el toolchain de Rust tenga ese destino.</li>
+</ul>
+
+<h2 id="cli">Terminal</h2>
+<pre>chordmac cancion.wav [--capo 3] [--json]   traza una grabación
+chordmac listen [--source mac|Scarlett]    traza lo que suena en el Mac, o una entrada, en directo
+chordmac synth prueba.wav "C G Am F"       una progresión rasgueada para probar
+chordmac history                           todas las escuchas guardadas</pre>
+
+<h2 id="privacy">Privacidad</h2>
+<p>El sonido se queda en memoria mientras dura la escucha y pasa al motor dentro de la app; nunca se escribe en disco. El historial guarda nombres de acordes y tiempos, no audio. La única conexión que abre la app es la comprobación diaria opcional de versión en GitHub.</p>
+
+<p class="muted">Chordmap for Mac es gratis y de código abierto, licencia MIT, firmado por su autor. El motor, la app web y la terminal viven en <a href="https://github.com/keithadler/chordmap">github.com/keithadler/chordmap</a>. Más del mismo autor en <a href="https://keithadler.github.io">keithadler.github.io</a>.</p>
+</main></body></html>

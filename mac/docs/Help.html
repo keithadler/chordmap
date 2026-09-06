@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Chordmap for Mac Help</title><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light dark; --fg: #1d1d1f; --muted: #6e6e73; --bg: #fff; --card: #f5f5f7; --accent: #6b46c1; --line: #e5e5ea; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #f5f5f7; --muted: #a1a1a6; --bg: #1c1c1e; --card: #2c2c2e; --accent: #b794f4; --line: #3a3a3c; } }
+  body { margin: 0; font: 15px/1.55 -apple-system, "SF Pro Text", Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 30px; margin: 0 0 4px; } h1 small { display: block; font-size: 15px; font-weight: 400; color: var(--muted); }
+  h2 { font-size: 20px; margin: 36px 0 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+  h3 { font-size: 16px; margin: 20px 0 6px; } .muted { color: var(--muted); }
+  code, pre { font: 13px ui-monospace, "SF Mono", Menlo, monospace; } pre { background: var(--card); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+  .card { background: var(--card); border-radius: 10px; padding: 14px 16px; margin: 12px 0; } .warn { border-left: 4px solid #d9a400; }
+  nav a { margin-right: 14px; color: var(--accent); text-decoration: none; } a { color: var(--accent); }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; } td, th { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; } th { color: var(--muted); font-weight: 600; font-size: 13px; }
+</style>
+</head><body><main>
+<h1>Chordmap for Mac <small>Play a song on the Mac and see the key, the tempo, the chords bar by bar and where the capo goes. It hears; it never records. Nothing leaves the Mac.</small></h1>
+<nav><a href="#start">First run</a><a href="#window">The window</a><a href="#capo">Capo</a><a href="#history">History</a><a href="#input">An input instead</a><a href="#limits">Honest limits</a><a href="#cli">Command line</a><a href="#privacy">Privacy</a></nav>
+
+<h2 id="start">First run</h2>
+<p>Open the app, press the big button (or ⌘L), and play a song in any app on the Mac. macOS asks once for System Audio Recording: that is how it describes hearing what the Mac plays, and the app cannot work without it. Allow it. Four seconds later the first chart appears.</p>
+<div class="card warn">Hearing the Mac's own sound needs macOS 14.2 or later. On 14.0 and 14.1 pick an input device in the menu at the top right instead.</div>
+
+<h2 id="window">The window</h2>
+<p>Every two seconds chordmap, the engine inside, re-hears the last 24 seconds and the window shows:</p>
+<table>
+<tr><th>Card</th><th>What it says</th></tr>
+<tr><td>Now, Key, Tempo</td><td>The chord sounding now, the key (with its runner-up when the engine is unsure), the tempo and the meter, 4/4 or 3/4.</td></tr>
+<tr><td>Capo</td><td>The best four capo positions, each with how many seconds of the song land on barre chords, and the engine's own pick marked. See below.</td></tr>
+<tr><td>Bar by bar</td><td>One chip per bar, with the chord on each beat, grouped by section: intro, verse, chorus, bridge, outro, as the engine guesses them.</td></tr>
+<tr><td>Chord sheet</td><td>After you stop, the whole listen is charted and chordmap's plain-text sheet appears, with a Copy button (⇧⌘C copies it from anywhere).</td></tr>
+</table>
+<p>The menu bar icon shows the key, tempo and chord now without the window.</p>
+
+<h2 id="capo">Capo</h2>
+<p>chordmap scores every fret from 0 to 7 by how many seconds of the song fall on barre or otherwise hard shapes and picks the one with the least, so a song in Eb comes back as capo 3 with Eb → C, Ab → F, Bb → G, Cm → Am. Choose another fret and every chord shown, in the Now card and the bars, becomes the shape your hand makes; slash chords move both notes. The first option puts the sounding names back.</p>
+
+<h2 id="history">History</h2>
+<p>When you stop, the listen is kept with its whole chart under "Heard before" in the sidebar. Click one to see it again, retitle it in the field at the top, or delete it with the trash button. The list lives in <code>~/Library/Application Support/Chordmap for Mac/listens.json</code> and nowhere else.</p>
+
+<h2 id="input">An input instead</h2>
+<p>The menu at the top right lists every input device. Pick an audio interface and play a guitar into it, or a microphone in front of a record player, and the same chart appears. macOS asks once for the Microphone; nothing is recorded.</p>
+
+<h2 id="limits">Honest limits</h2>
+<ul>
+<li>It does not know the song's name. It has no database; it only hears.</li>
+<li>A clear mix charts well. A wall of distortion, a solo voice, or a beat with little harmony charts less well, and the engine flags a stretch of sparse harmony instead of inventing chords for it. The key and the tempo are usually right even then.</li>
+<li>Major and minor chords and sevenths. No suspended chords, no diminished, no extensions beyond the seventh.</li>
+<li>Four seconds is the least it will chart. The live view lags the song by about two seconds.</li>
+<li>Apple Silicon only for now; an Intel build follows when the Rust toolchain here gets the Intel target.</li>
+</ul>
+
+<h2 id="cli">Command line</h2>
+<pre>chordmac song.wav [--capo 3] [--json]     chart a recording: key, tempo, capo, the chord sheet
+chordmac listen [--source mac|Scarlett]   chart what the Mac plays, or an input, live
+chordmac synth test.wav "C G Am F" --bpm 100   a strummed progression to try it with
+chordmac history                          every listen kept
+chordmac status | devices | selftest</pre>
+<p><code>--json</code> everywhere. Exit codes: 0 fine, 1 something to look at, 2 problem, 64 usage. The Rust command <code>chordmap</code> from the same repository charts files without the app; <code>chordmac</code> adds live listening and the history.</p>
+
+<h2 id="privacy">Privacy</h2>
+<p>Sound stays in memory for the length of a listen and is handed to the engine inside the app; it is never written to disk. The history keeps chord names and times, not audio. The only connection the app opens is the optional daily update check, which asks GitHub for the latest version number and sends nothing about you.</p>
+
+<p class="muted">Chordmap for Mac is free and open source, MIT licensed, signed by its author. The engine, the web app and the command line live at <a href="https://github.com/keithadler/chordmap">github.com/keithadler/chordmap</a>. More from the same maker at <a href="https://keithadler.github.io">keithadler.github.io</a>.</p>
+</main></body></html>

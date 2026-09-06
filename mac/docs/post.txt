@@ -1,0 +1,11 @@
+Chordmap for Mac. Free, open source.
+
+Play any song on the Mac and see the chords as they go by: the key, the tempo, the chords bar by bar, the sections, and where the capo goes so the open shapes play it. Eb major becomes capo 3, play in C.
+
+It hears; it never records, and it does not know the song's name. A clear mix charts well, a wall of distortion less well, and sparse harmony is flagged, not invented.
+
+Every listen is kept with its chord sheet to copy. A guitar into an interface works too. Also a command line: chordmac song.wav --capo 3
+
+The engine is chordmap, pure Rust, the same one behind the web app at keithadler.github.io/chordmap.
+
+https://github.com/keithadler/chordmap

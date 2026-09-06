@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chordmap for Mac</title>
+<style>
+  :root { color-scheme: light dark; --fg:#1d1d1f; --muted:#6e6e73; --bg:#fff; --card:#f5f5f7; --accent:#12707a; }
+  @media (prefers-color-scheme: dark) { :root { --fg:#f5f5f7; --muted:#a1a1a6; --bg:#141416; --card:#232326; --accent:#4fc3cf; } }
+  body { margin:0; font:17px/1.55 -apple-system,"SF Pro Text",Helvetica,Arial,sans-serif; color:var(--fg); background:var(--bg); }
+  main { max-width:900px; margin:0 auto; padding:56px 24px 96px; }
+  h1 { font-size:44px; line-height:1.1; margin:0 0 12px; letter-spacing:-0.02em; } .lead { font-size:21px; color:var(--muted); margin:0 0 28px; }
+  img { max-width:100%; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.25); margin:18px 0 32px; }
+  .btn { display:inline-block; background:var(--accent); color:#fff; padding:14px 22px; border-radius:10px; text-decoration:none; font-weight:600; }
+  h2 { font-size:26px; margin:40px 0 8px; } .grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; } .card { background:var(--card); border-radius:12px; padding:18px 20px; } .card h3 { margin:0 0 6px; font-size:18px; }
+  code { font:15px ui-monospace,"SF Mono",Menlo,monospace; background:var(--card); padding:2px 6px; border-radius:6px; } .small { color:var(--muted); font-size:15px; }
+</style></head><body><main>
+<h1>Play any song on the Mac.<br>See the chords.</h1>
+<p class="lead">Key, tempo, the chords bar by bar, the sections, and where the capo goes so the open shapes play it. Live, while the song plays, in any app. Every listen kept with its chord sheet.</p>
+<p><a class="btn" href="https://github.com/keithadler/chordmap/releases/latest">Download for macOS</a> &nbsp; <span class="small">Free. Open source. macOS 14 or later, Apple Silicon. Nothing recorded, nothing leaves the Mac.</span></p>
+<img src="screenshots/live.png" alt="Chordmap for Mac mid-song: Eb major, 96 bpm, capo 3, the bars by section">
+<h2>What it does</h2>
+<div class="grid">
+<div class="card"><h3>The chords, as they go by</h3>Every two seconds the engine re-hears the last 24 seconds: the chord now, the key with its runner-up, the tempo and the meter, and one chip per bar grouped by section.</div>
+<div class="card"><h3>Where the capo goes</h3>Every fret from 0 to 7 is scored by how many seconds land on barre chords. Pick the engine's choice or another and every chord turns into the shape your hand makes.</div>
+<div class="card"><h3>Heard before</h3>Stop, and the whole listen is charted and kept: key, tempo, sections, bars, and chordmap's chord sheet to copy. Retitle it, come back to it.</div>
+<div class="card"><h3>It hears; it never records</h3>Sound stays in memory for the length of a listen. No database, no song titles, no upload, no account. The engine is chordmap, pure Rust, the same one behind the web app.</div>
+</div>
+<img src="screenshots/listen.png" alt="A kept listen with its chord sheet">
+<h2>Honest limits</h2>
+<p class="small">A clear mix charts well; a wall of distortion, a solo voice or a beat with little harmony charts less well, and sparse harmony is flagged rather than invented. Major and minor chords and sevenths. Four seconds is the least it will chart, and the live view lags the song by about two seconds. macOS asks once for System Audio Recording; that is how it describes hearing what the Mac plays.</p>
+<p class="small">Also a command line: <code>chordmac song.wav --capo 3</code>. MIT licensed. One of the free Mac apps at <a href="https://keithadler.github.io">keithadler.github.io</a>.</p>
+</main></body></html>

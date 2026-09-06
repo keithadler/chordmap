@@ -1,0 +1,12 @@
+CHORDMAP FOR MAC
+----------------------------------------------------------------------
+TikTok / Reels / Shorts caption:
+Free, open source Mac app: play any song on the Mac and see the chords go by, the key, the tempo and where the capo goes so the easy shapes play it. Safe: nothing recorded, nothing uploads, no account, the code is public. Get it: github.com/keithadler/chordmap
+#mac #macos #apple #macbook #freeapp #opensource #privacy #guitar #chords #capo #musictheory #techtok #fyp
+
+X post:
+Chordmap for Mac. Free, open source.
+Play any song on the Mac and see the chords bar by bar, the key, the tempo, and where the capo goes so the open shapes play it. Every listen kept with its chord sheet.
+It hears; it never records, and it does not know the song's name. Rust engine, nothing uploaded.
+https://github.com/keithadler/chordmap
+#macOS #opensource #guitar #chords #indiedev

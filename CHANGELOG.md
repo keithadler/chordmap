@@ -1,5 +1,9 @@
 # Changelog
 
+## Mac app 1.0.0 (2026-09-06)
+
+Chordmap for Mac, in `mac/`: the engine as a macOS app that hears what the Mac plays through a Core Audio tap (or an input device) and charts it live every two seconds, with the capo picker, bars by section, the chord sheet, and a history of listens. Swift over a small C bridge to the crate; Apple Silicon build, signed by its author.
+
 ## 1.0.0 (2026-09-06)
 
 First public release, live at https://keithadler.github.io/chordmap/.

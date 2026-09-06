@@ -1,0 +1,5 @@
+module CChordmap {
+    header "chordmap.h"
+    link "chordmap_ffi"
+    export *
+}

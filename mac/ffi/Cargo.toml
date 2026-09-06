@@ -1,0 +1,23 @@
+# The bridge from Chordmap for Mac to the engine in ../../crates/chordmap: a static library with a
+# C face. Built by ffi/build.sh; Package.swift links ffi/lib/libchordmap_ffi.a.
+[package]
+name = "chordmap-ffi"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+chordmap = { path = "../../crates/chordmap" }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+# Its own workspace, so cargo does not try to fold it into the repo's.
+[workspace]

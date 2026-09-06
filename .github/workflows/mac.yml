@@ -1,0 +1,17 @@
+name: Mac app
+on:
+  push: { paths: ["mac/**", "crates/chordmap/**", ".github/workflows/mac.yml"] }
+  pull_request: { paths: ["mac/**", "crates/chordmap/**"] }
+jobs:
+  test:
+    runs-on: macos-latest
+    defaults: { run: { working-directory: mac } }
+    steps:
+      - uses: actions/checkout@v5
+      - run: swift --version
+      - run: rustup target add x86_64-apple-darwin || true
+      - run: ffi/build.sh
+      - run: swift build
+      - run: .build/debug/ChordMap selftest
+      - run: swift test
+      - run: tests/integration.sh
