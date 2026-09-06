@@ -6,7 +6,7 @@ Tempo, key, chords, sections and a capo suggestion from any audio file.
 Pure Rust, compiles to WebAssembly, MIT licensed. The audio never leaves
 your browser: there is no server, no account, no analytics.
 
-- **Web app**: drop an MP3, M4A, WAV, FLAC or OGG and get the BPM with half and double buttons and tap tempo, 4/4 or 3/4, the key with its runner-up, a chord chart per bar grouped by section, a clickable section map that follows playback, a now-playing footer with the last three, current and next three chords, and the capo fret that turns the most chords into open shapes. Copy, download or print the chord sheet. Works offline after the first visit.
+- **Web app**: drop an MP3, M4A, WAV, FLAC or OGG and get the BPM with half and double buttons and tap tempo, 4/4 or 3/4, the key with its runner-up, a chord chart per bar grouped by section, a clickable section map that follows playback, a now-playing footer with the last three, current and next three chords, and the capo fret that turns the most chords into open shapes, with fingering diagrams. Loop any section at 50 to 100 percent speed without changing pitch. Read the chart as shapes, sounding chords or Nashville numbers. Copy, print, or download the chord sheet as text, ChordPro or MIDI, and share the chart as a link that carries no audio. Works offline after the first visit.
 - **Rust crate** `chordmap`: the engine, no I/O, no `unsafe`, no models to download.
 - **npm package** `chordmap`: WebAssembly bindings with TypeScript types.
 - **CLI** `chordmap`: one binary for scripts and shells.

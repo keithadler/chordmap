@@ -12,3 +12,7 @@
 - Peak-based pitch spectrum and harmonic-aware chroma.
 - Web app: now-playing footer with the last three, current and next three
   chords, space to play and pause, print stylesheet, offline app shell.
+- Web app: guitar fingering diagrams for the shapes, section loop with
+  50 to 100 percent speed at the same pitch, Nashville numbers view, MIDI
+  and ChordPro downloads, share link with the chart gzipped into the URL,
+  arrow keys step through bars.

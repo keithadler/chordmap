@@ -8,3 +8,6 @@ chordmap runs entirely on your device.
   light or dark theme choice, in your browser's local storage.
 - The CLI reads the file you name and writes to standard output.
 - The page loads no third-party scripts or fonts.
+- "Share chart" builds a link with the chart (tempo, key, chords, sections,
+  file name) compressed into the URL itself. The audio is not in it and
+  nothing is stored anywhere; whoever gets the link gets only the chart.

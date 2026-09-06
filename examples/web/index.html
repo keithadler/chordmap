@@ -108,6 +108,12 @@
   .shape { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 3px 8px; font-size: 14px; }
   .shape b { color: var(--accent); }
 
+  .diagrams { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; color: var(--ink); }
+  .cbox { flex: none; }
+  .loopbtn { margin-left: 10px; }
+  .loopbtn.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  body.shared audio, body.shared .practice, body.shared #tap, body.shared #half, body.shared #double, body.shared #share { display: none; }
+
   /* Now-playing footer */
   #nowplaying { position: fixed; left: 0; right: 0; bottom: 0; transform: translateY(110%); transition: transform .2s; background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(12px); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(7, 1fr); align-items: center; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); z-index: 40; box-shadow: 0 -10px 30px -18px rgba(0,0,0,.5); }
   #nowplaying.on { transform: none; }
@@ -120,7 +126,7 @@
   body.playing { padding-bottom: 96px; }
 
   @media print {
-    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how { display: none !important; }
+    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how, .loopbtn { display: none !important; }
     body { background: #fff; color: #000; font-size: 12px; }
     .tiles { grid-template-columns: repeat(3, 1fr); }
     .tile, .bar { box-shadow: none; border-color: #bbb; break-inside: avoid; }
@@ -188,6 +194,7 @@
         <div class="value" id="capo"></div>
         <div class="sub" id="capo-sub"></div>
         <div class="shapes" id="shapes"></div>
+        <div class="diagrams" id="diagrams"></div>
       </div>
     </div>
 
@@ -210,8 +217,16 @@
           <span class="seg" id="show">
             <button type="button" data-v="shapes" class="on">Shapes to play</button>
             <button type="button" data-v="sounding">Sounding chords</button>
+            <button type="button" data-v="numbers">Numbers</button>
           </span>
         </span>
+        <label class="field practice">Speed
+          <select id="speed">
+            <option value="0.5">50%</option><option value="0.6">60%</option><option value="0.7">70%</option>
+            <option value="0.8">80%</option><option value="0.9">90%</option><option value="1" selected>100%</option>
+          </select>
+        </label>
+        <span class="field practice" id="loop-status"></span>
       </div>
       <div class="timeline" id="timeline" title="Click to jump"></div>
       <audio id="player" controls preload="metadata"></audio>
@@ -223,7 +238,10 @@
     <div class="actions">
       <button class="btn" id="copy" type="button">Copy chord sheet</button>
       <button class="btn ghost" id="dl-sheet" type="button">Download .txt</button>
+      <button class="btn ghost" id="dl-midi" type="button">Download MIDI</button>
+      <button class="btn ghost" id="dl-chordpro" type="button">Download ChordPro</button>
       <button class="btn ghost" id="dl-json" type="button">Download JSON</button>
+      <button class="btn ghost" id="share" type="button">Share chart</button>
       <button class="btn ghost" id="print" type="button">Print</button>
     </div>
     <div class="tip">Free, no ads, no accounts. If it saved you a subscription, a tip is welcome: <a href="https://venmo.com/u/Keith-Adler-1" target="_blank" rel="noopener">Venmo @Keith-Adler-1</a></div>
@@ -231,7 +249,7 @@
 
   <footer>
     <p><b>chordmap</b> is open source (MIT). The audio is decoded and analyzed on this device and is never uploaded. There is no analytics, no account and no server.</p>
-    <p>Chords are major, minor and seventh chords. Section names like "chorus" are guesses from repetition and loudness. Check the chart against your ears. Space plays and pauses.</p>
+    <p>Chords are major, minor and seventh chords. Section names like "chorus" are guesses from repetition and loudness. Check the chart against your ears. Space plays and pauses, arrows step through bars, Esc stops a loop.</p>
   </footer>
 </div>
 <div id="nowplaying" aria-live="off"></div>

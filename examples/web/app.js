@@ -1,6 +1,9 @@
 // chordmap web app. Decodes audio in the browser, analyzes it in a worker
 // running the Rust engine, and draws the chart. No network calls.
 
+import { diagram } from "./chords-guitar.js?v=dev";
+import { midiBytes, chordPro, shareLink, readShareLink } from "./export.js?v=dev";
+
 const $ = (id) => document.getElementById(id);
 const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FLAT = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
@@ -10,7 +13,21 @@ const state = {
   file: null, samples: null, sampleRate: 0, url: null,
   analysis: null, sheet: "", bpmHint: null,
   capo: 0, transpose: 0, show: "shapes", spelling: "auto", taps: [],
+  loop: null, shared: false,
 };
+
+// ---------- a chart shared by link: no audio, everything else works
+readShareLink().then((shared) => {
+  if (!shared || !shared.a) return;
+  state.shared = true; state.sharedTitle = shared.t || "Shared chart";
+  state.analysis = shared.a; state.capo = shared.a.guitar.capo;
+  $("fname").textContent = state.sharedTitle;
+  $("fmeta").textContent = fmtTime(shared.a.duration) + " · shared chart, no audio";
+  $("home").style.display = "none";
+  $("results").classList.add("active");
+  document.body.classList.add("shared");
+  render();
+});
 
 // ---------- offline (the app shell is cached after the first visit)
 if ("serviceWorker" in navigator && location.protocol === "https:") {
@@ -144,8 +161,16 @@ function spell(pc, tonicPc, minor) {
 function shift() { return state.show === "shapes" ? state.transpose - state.capo : state.transpose; }
 function shownTonicBase() { const a = state.analysis; const k = parseLabel(a.key.tonic + (a.key.minor ? "m" : "")); return k ? k.pc : 0; }
 function shownTonic() { return (shownTonicBase() + shift() + 120) % 12; }
+const DEGREES = ["1", "b2", "2", "b3", "3", "4", "b5", "5", "b6", "6", "b7", "7"];
+const DEGREES_MINOR = ["1", "b2", "2", "3", "#3", "4", "b5", "5", "6", "#6", "7", "#7"];
 function display(label) {
   const c = parseLabel(label); if (!c) return "N.C.";
+  if (state.show === "numbers") {
+    // Nashville numbers relative to the key: 1 4 5 6m, b7 for borrowed chords.
+    const a = state.analysis;
+    const deg = (c.pc - shownTonicBase() + 120) % 12;
+    return (a.key.minor ? DEGREES_MINOR : DEGREES)[deg] + c.suffix;
+  }
   const pc = (c.pc + shift() + 120) % 12;
   return spell(pc, shownTonic(), state.analysis.key.minor) + c.suffix;
 }
@@ -182,6 +207,13 @@ function render() {
     const s1 = respell(sounding, state.transpose, soundingTonic), s2 = respell(shape, state.transpose, shapeTonic);
     el.innerHTML = g.capo ? `${esc(s1)} → <b>${esc(s2)}</b>` : `<b>${esc(s1)}</b>`;
     shapes.appendChild(el);
+  });
+  const dia = $("diagrams"); dia.innerHTML = "";
+  Object.values(g.shapes).forEach((shape) => {
+    const c = parseLabel(shape); if (!c) return;
+    const name = spell((c.pc + state.transpose + 120) % 12, shapeTonic, a.key.minor) + c.suffix;
+    const wrap = document.createElement("span"); wrap.innerHTML = diagram(name, (c.pc + state.transpose + 120) % 12, c.suffix);
+    dia.appendChild(wrap.firstChild);
   });
   const cs = $("capo-select"); cs.innerHTML = "";
   g.options.forEach((o) => {
@@ -226,6 +258,14 @@ function renderChart() {
     const sec = document.createElement("div"); sec.className = "section";
     const h = document.createElement("h4");
     h.innerHTML = `<span class="dot" style="background:${color(s.label)}"></span>${esc(s.label)} <span class="guess">${esc(s.guess)}</span><span class="time">${fmtTime(s.start)} – ${fmtTime(s.end)}</span>`;
+    if (!state.shared) {
+      const loop = document.createElement("button"); loop.type = "button"; loop.className = "btn ghost small loopbtn";
+      const active = state.loop && state.loop.start === s.start;
+      loop.textContent = active ? "Looping" : "Loop";
+      loop.classList.toggle("on", !!active);
+      loop.addEventListener("click", () => setLoop(active ? null : { start: s.start, end: s.end, label: s.label }));
+      h.appendChild(loop);
+    }
     sec.appendChild(h);
     const grid = document.createElement("div"); grid.className = "bars";
     const from = si === 0 ? 0 : s.bar;
@@ -260,6 +300,20 @@ function tick() {
   renderNowPlaying(t);
 }
 
+// ---------- practice: loop a section, play it slower without changing pitch
+function setLoop(loop) {
+  state.loop = loop;
+  const p = $("player");
+  $("loop-status").textContent = loop ? "Looping " + loop.label + " " + fmtTime(loop.start) + " – " + fmtTime(loop.end) + ". Esc stops." : "";
+  if (loop) { p.currentTime = loop.start; p.play(); }
+  renderChart();
+}
+$("player").addEventListener("timeupdate", () => {
+  const p = $("player"), l = state.loop;
+  if (l && (p.currentTime >= l.end - 0.05 || p.currentTime < l.start - 1)) p.currentTime = l.start;
+});
+$("speed").addEventListener("change", (e) => { const p = $("player"); p.preservesPitch = true; p.playbackRate = +e.target.value; });
+
 // Persistent footer while playing: the three chords just played, the one
 // sounding now with a countdown, and the next three.
 let lastNowKey = "";
@@ -286,7 +340,16 @@ function renderNowPlaying(t) {
 document.addEventListener("keydown", (e) => {
   if (e.target.matches("input, select, textarea, button")) return;
   const p = $("player");
-  if (e.code === "Space" && state.analysis) { e.preventDefault(); p.paused ? p.play() : p.pause(); }
+  if (!state.analysis || state.shared) return;
+  if (e.code === "Space") { e.preventDefault(); p.paused ? p.play() : p.pause(); }
+  if (e.code === "Escape" && state.loop) setLoop(null);
+  if (e.code === "ArrowLeft" || e.code === "ArrowRight") {
+    e.preventDefault();
+    const bars = state.analysis.bars, t = p.currentTime;
+    let i = bars.findIndex((b) => t >= b.start && t < b.end); if (i < 0) i = 0;
+    const j = e.code === "ArrowRight" ? Math.min(bars.length - 1, i + 1) : (t - bars[i].start > 1 ? i : Math.max(0, i - 1));
+    p.currentTime = bars[j].start;
+  }
 });
 $("player").addEventListener("pause", () => renderNowPlaying($("player").currentTime));
 $("player").addEventListener("play", () => renderNowPlaying($("player").currentTime));
@@ -336,14 +399,24 @@ function sheetText() {
   });
   return out;
 }
-function download(name, text, type) {
-  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click();
+function download(name, data, type) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], { type })); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
-function base() { return (state.file.name.replace(/\.[^.]+$/, "") || "song"); }
+function base() { return ((state.file ? state.file.name : state.sharedTitle || "song").replace(/\.[^.]+$/, "") || "song"); }
 $("copy").addEventListener("click", async () => { try { await navigator.clipboard.writeText(sheetText()); $("copy").textContent = "Copied"; setTimeout(() => ($("copy").textContent = "Copy chord sheet"), 1500); } catch (e) { download(base() + " chords.txt", sheetText(), "text/plain"); } });
 $("dl-sheet").addEventListener("click", () => download(base() + " chords.txt", sheetText(), "text/plain"));
 $("print").addEventListener("click", () => window.print());
 $("player").addEventListener("play", () => document.body.classList.add("playing"));
 $("player").addEventListener("pause", () => document.body.classList.remove("playing"));
+$("dl-midi").addEventListener("click", () => download(base() + " chords.mid", midiBytes(state.analysis), "audio/midi"));
+$("dl-chordpro").addEventListener("click", () => download(base() + ".cho", chordPro(state.analysis, base(), display), "text/plain"));
+$("share").addEventListener("click", async () => {
+  try {
+    const url = await shareLink(state.analysis, base());
+    await navigator.clipboard.writeText(url);
+    $("share").textContent = "Link copied (" + Math.round(url.length / 1024) + " KB)";
+  } catch (e) { $("share").textContent = "Could not make a link"; }
+  setTimeout(() => ($("share").textContent = "Share chart"), 2500);
+});
 $("dl-json").addEventListener("click", () => download(base() + " chordmap.json", JSON.stringify(state.analysis, null, 2), "application/json"));

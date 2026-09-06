@@ -72,3 +72,12 @@ with the right amount of trust.
   M4A/AAC, WAV, FLAC and OGG; Safari lacks OGG and some FLAC. The CLI uses
   symphonia and reads MP3, AAC/M4A, FLAC, OGG Vorbis and WAV.
 - Audio shorter than four seconds is rejected.
+
+## Guitar diagrams and playback
+- Diagrams are one common voicing per chord in standard tuning: the open
+  shape when there is one, otherwise an E-shape or A-shape barre. No
+  alternatives, no drop tunings.
+- Slower playback uses the browser's time stretch, which keeps pitch but
+  smears transients below about 70 percent.
+- A share link holds the whole chart, so it runs to a few kilobytes; some
+  chat apps truncate long URLs.
