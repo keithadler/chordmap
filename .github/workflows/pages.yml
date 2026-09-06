@@ -1,8 +1,8 @@
 name: Deploy web app to GitHub Pages
 
-# Runs by hand until the repository is public and Pages is switched on;
-# then add `push: branches: [main]` back under `on`.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
