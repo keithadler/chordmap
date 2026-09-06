@@ -3,7 +3,7 @@
 // replaces the cache on the next load.
 const VERSION = "__VERSION__";
 const CACHE = "chordmap-" + VERSION;
-const SHELL = ["./", "./index.html", "./app.js?v=" + VERSION, "./worker.js?v=" + VERSION, "./chords-guitar.js?v=" + VERSION, "./export.js?v=" + VERSION, "./pkg/chordmap.js?v=" + VERSION, "./pkg/chordmap_bg.wasm?v=" + VERSION, "./manifest.webmanifest"];
+const SHELL = ["./", "./index.html", "./app.js?v=" + VERSION, "./worker.js?v=" + VERSION, "./chords-guitar.js?v=" + VERSION, "./export.js?v=" + VERSION, "./library.js?v=" + VERSION, "./pkg/chordmap.js?v=" + VERSION, "./pkg/chordmap_bg.wasm?v=" + VERSION, "./manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

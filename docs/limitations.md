@@ -81,3 +81,11 @@ with the right amount of trust.
   smears transients below about 70 percent.
 - A share link holds the whole chart, so it runs to a few kilobytes; some
   chat apps truncate long URLs.
+
+## Editing and the library
+- Edits change labels and bar lines only. Beat times, tempo and the key
+  are not editable; re-run with a tempo hint if the grid is wrong.
+- Corrections are keyed by file name, size and modification time, so a
+  re-exported or renamed file starts fresh.
+- The library lives in this browser's IndexedDB: not synced, cleared when
+  site data is cleared, and private windows lose it on close.

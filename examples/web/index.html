@@ -114,6 +114,24 @@
   .loopbtn.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
   body.shared audio, body.shared .practice, body.shared #tap, body.shared #half, body.shared #double, body.shared #share { display: none; }
 
+  .library { max-width: 620px; margin: 22px auto 0; text-align: left; }
+  .library h3 { font-size: 15px; margin: 0 0 8px; } .library h3 small { color: var(--muted); font-weight: 400; margin-left: 8px; }
+  .library ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+  .library li { display: flex; gap: 8px; align-items: center; }
+  .lib-open { flex: 1; text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+  .lib-open:hover { border-color: var(--accent); } .lib-open span { color: var(--muted); font-size: 13px; }
+  .iconbtn { border: 1px solid var(--line); background: transparent; border-radius: 8px; width: 34px; height: 34px; cursor: pointer; font-size: 15px; display: grid; place-items: center; }
+  #edit.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  body.editing-hint .bar { cursor: text; }
+  .editable { cursor: text; text-decoration: underline dotted; }
+  .rename { font: inherit; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--accent); background: var(--bg); color: inherit; width: 120px; }
+  .editor { grid-column: 1 / -1; background: var(--card); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--accent-glow); }
+  .ed-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .ed-row button { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 6px 9px; cursor: pointer; font-weight: 600; min-width: 38px; }
+  .ed-row button.on, .ed-row button#ed-close { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  .ed-hint { color: var(--muted); font-size: 13px; margin-left: auto; margin-right: 8px; }
+  .check { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
+
   /* Now-playing footer */
   #nowplaying { position: fixed; left: 0; right: 0; bottom: 0; transform: translateY(110%); transition: transform .2s; background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(12px); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(7, 1fr); align-items: center; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); z-index: 40; box-shadow: 0 -10px 30px -18px rgba(0,0,0,.5); }
   #nowplaying.on { transform: none; }
@@ -126,7 +144,7 @@
   body.playing { padding-bottom: 96px; }
 
   @media print {
-    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how, .loopbtn { display: none !important; }
+    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how, .loopbtn, #edit, #nudge, .editor, .library { display: none !important; }
     body { background: #fff; color: #000; font-size: 12px; }
     .tiles { grid-template-columns: repeat(3, 1fr); }
     .tile, .bar { box-shadow: none; border-color: #bbb; break-inside: avoid; }
@@ -159,6 +177,10 @@
       <div class="sub">or click to choose. MP3, M4A, WAV, FLAC and OGG, whatever your browser can play.</div>
     </div>
     <div class="status" id="status" aria-live="polite"></div>
+    <div class="library" id="library" hidden>
+      <h3>Recent charts <small>kept in this browser, charts only, never audio</small></h3>
+      <ul id="library-list"></ul>
+    </div>
     <div class="how">
       <div><b>How it works</b><span>Classic music analysis, no models to download: onset autocorrelation for tempo, chroma templates for chords, Krumhansl profiles for key, a self-similarity matrix for sections.</span></div>
       <div><b>What it gets right</b><span>Steady-tempo pop, rock, folk and worship songs in 4/4 or 3/4, with major, minor and seventh chords. Around three in four chords on a typical mix. Recordings tuned away from A440 are corrected.</span></div>
@@ -193,6 +215,7 @@
         <div class="label">Guitar</div>
         <div class="value" id="capo"></div>
         <div class="sub" id="capo-sub"></div>
+        <div class="row"><span class="seg" id="instrument"><button type="button" data-v="guitar" class="on">Guitar</button><button type="button" data-v="ukulele">Ukulele</button></span></div>
         <div class="shapes" id="shapes"></div>
         <div class="diagrams" id="diagrams"></div>
       </div>
@@ -227,6 +250,11 @@
           </select>
         </label>
         <span class="field practice" id="loop-status"></span>
+        <button class="btn ghost small" id="edit" type="button">Edit chart</button>
+        <span class="field" id="nudge" hidden>Bar lines
+          <button class="btn ghost small" id="nudge-left" type="button" title="Move bar lines one beat earlier">◀ beat</button>
+          <button class="btn ghost small" id="nudge-right" type="button" title="Move bar lines one beat later">beat ▶</button>
+        </span>
       </div>
       <div class="timeline" id="timeline" title="Click to jump"></div>
       <audio id="player" controls preload="metadata"></audio>
@@ -249,7 +277,7 @@
 
   <footer>
     <p><b>chordmap</b> is open source (MIT). The audio is decoded and analyzed on this device and is never uploaded. There is no analytics, no account and no server.</p>
-    <p>Chords are major, minor and seventh chords. Section names like "chorus" are guesses from repetition and loudness. Check the chart against your ears. Space plays and pauses, arrows step through bars, Esc stops a loop.</p>
+    <p>Chords are major, minor and seventh chords. Section names like "chorus" are guesses from repetition and loudness. Check the chart against your ears. Space plays and pauses, arrows step through bars, Esc stops a loop. Edit chart lets you fix any chord or section name; corrections are kept in this browser and go into every download and share link.</p>
   </footer>
 </div>
 <div id="nowplaying" aria-live="off"></div>

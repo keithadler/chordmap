@@ -46,3 +46,33 @@ export function diagram(name, pc, suffix) {
   });
   return s + "</svg>";
 }
+
+// Ukulele (GCEA), frets from the G string. Only chords with a common open
+// voicing are drawn; the rest are left out rather than invented.
+export const UKE = {
+  "C": [0, 0, 0, 3], "D": [2, 2, 2, 0], "E": [4, 4, 4, 2], "F": [2, 0, 1, 0], "G": [0, 2, 3, 2], "A": [2, 1, 0, 0], "B": [4, 3, 2, 2],
+  "Bb": [3, 2, 1, 1], "Eb": [0, 3, 3, 1], "Ab": [5, 3, 4, 3], "Db": [1, 1, 1, 4],
+  "Am": [2, 0, 0, 0], "Dm": [2, 2, 1, 0], "Em": [0, 4, 3, 2], "Bm": [4, 2, 2, 2], "Gm": [0, 2, 3, 1], "Cm": [0, 3, 3, 3], "Fm": [1, 0, 1, 3], "F#m": [2, 1, 2, 0], "C#m": [1, 4, 4, 4], "Ebm": [3, 3, 2, 1], "Bbm": [3, 1, 1, 1], "G#m": [4, 3, 4, 2],
+  "A7": [0, 1, 0, 0], "B7": [2, 3, 2, 2], "C7": [0, 0, 0, 1], "D7": [2, 2, 2, 3], "E7": [1, 2, 0, 2], "F7": [2, 3, 1, 3], "G7": [0, 2, 1, 2], "Bb7": [1, 2, 1, 1], "Eb7": [3, 3, 3, 4],
+  "Am7": [0, 0, 0, 0], "Dm7": [2, 2, 1, 3], "Em7": [0, 2, 0, 2], "Gm7": [0, 2, 1, 1], "Bm7": [2, 2, 2, 2], "Cm7": [3, 3, 3, 3],
+  "Cmaj7": [0, 0, 0, 2], "Dmaj7": [2, 2, 2, 4], "Fmaj7": [2, 4, 1, 3], "Gmaj7": [0, 2, 2, 2], "Amaj7": [1, 1, 0, 0], "Bbmaj7": [3, 2, 1, 0], "Ebmaj7": [3, 3, 3, 3],
+};
+
+/** Ukulele chord box, or null when no common voicing is known. */
+export function ukeDiagram(name) {
+  const frets = UKE[name]; if (!frets) return null;
+  const hi = Math.max(...frets), lo = Math.min(...frets.filter((f) => f > 0).concat([99]));
+  const base = frets.includes(0) || hi <= 4 ? 1 : lo;
+  const W = 56, H = 84, x0 = 14, y0 = 18, sx = 9, sy = 12;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="cbox" role="img" aria-label="${name}">`;
+  s += `<text x="${W / 2}" y="10" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor">${name}</text>`;
+  for (let i = 0; i < 4; i++) s += `<line x1="${x0 + i * sx}" y1="${y0}" x2="${x0 + i * sx}" y2="${y0 + 4 * sy}" stroke="currentColor" stroke-width=".8"/>`;
+  for (let j = 0; j <= 4; j++) s += `<line x1="${x0}" y1="${y0 + j * sy}" x2="${x0 + 3 * sx}" y2="${y0 + j * sy}" stroke="currentColor" stroke-width="${j === 0 && base === 1 ? 2.4 : .8}"/>`;
+  if (base > 1) s += `<text x="${x0 - 4}" y="${y0 + sy - 3}" text-anchor="end" font-size="7" fill="currentColor">${base}</text>`;
+  frets.forEach((f, i) => {
+    const x = x0 + i * sx;
+    if (f === 0) s += `<circle cx="${x}" cy="${y0 - 5}" r="2.2" fill="none" stroke="currentColor" stroke-width=".8"/>`;
+    else { const j = f - base; if (j >= 0 && j < 4) s += `<circle cx="${x}" cy="${y0 + j * sy + sy / 2}" r="3.2" fill="currentColor"/>`; }
+  });
+  return s + "</svg>";
+}

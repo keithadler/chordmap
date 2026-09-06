@@ -16,3 +16,7 @@
   50 to 100 percent speed at the same pitch, Nashville numbers view, MIDI
   and ChordPro downloads, share link with the chart gzipped into the URL,
   arrow keys step through bars.
+- Web app: edit mode to correct chords (per beat or whole bar) and rename
+  sections, bar-line nudge by one beat, recent-charts library in IndexedDB
+  with corrections restored for the same file, multi-file drop, ukulele
+  diagrams.

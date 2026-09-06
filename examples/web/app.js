@@ -1,7 +1,8 @@
 // chordmap web app. Decodes audio in the browser, analyzes it in a worker
 // running the Rust engine, and draws the chart. No network calls.
 
-import { diagram } from "./chords-guitar.js?v=dev";
+import { diagram, ukeDiagram } from "./chords-guitar.js?v=dev";
+import * as library from "./library.js?v=dev";
 import { midiBytes, chordPro, shareLink, readShareLink } from "./export.js?v=dev";
 
 const $ = (id) => document.getElementById(id);
@@ -13,7 +14,7 @@ const state = {
   file: null, samples: null, sampleRate: 0, url: null,
   analysis: null, sheet: "", bpmHint: null,
   capo: 0, transpose: 0, show: "shapes", spelling: "auto", taps: [],
-  loop: null, shared: false,
+  loop: null, shared: false, instrument: "guitar", editing: false, fileKey: null, queue: [],
 };
 
 // ---------- a chart shared by link: no audio, everything else works
@@ -66,7 +67,7 @@ function runAnalysis(options) {
 const drop = $("drop"), picker = $("picker");
 drop.addEventListener("click", () => picker.click());
 drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); picker.click(); } });
-picker.addEventListener("change", () => { if (picker.files[0]) openFile(picker.files[0]); picker.value = ""; });
+picker.addEventListener("change", () => { openFiles([...picker.files]); picker.value = ""; });
 // The overlay is shown while dragover events keep arriving and cleared a
 // moment after they stop, which also covers a drag that leaves the window.
 let dragTimer = null;
@@ -77,13 +78,25 @@ let dragTimer = null;
   clearTimeout(dragTimer); dragTimer = setTimeout(() => document.body.classList.remove("dragging"), 250);
 }));
 ["dragleave", "drop"].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); if (ev === "drop" || e.relatedTarget === null) { clearTimeout(dragTimer); document.body.classList.remove("dragging"); } }));
-document.addEventListener("drop", (e) => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) openFile(f); });
+document.addEventListener("drop", (e) => { const fs = e.dataTransfer ? [...e.dataTransfer.files] : []; if (fs.length) openFiles(fs); });
+// Several files at once: each is analyzed and saved to the library, the last one is shown.
+async function openFiles(files) {
+  const audio = files.filter((f) => /audio|\.(mp3|m4a|wav|flac|ogg|aac|aiff?)$/i.test(f.type + " " + f.name));
+  if (!audio.length) { setStatus("That does not look like an audio file.", true); return; }
+  for (let i = 0; i < audio.length; i++) {
+    state.queue = audio.length > 1 ? [i + 1, audio.length] : [];
+    await openFile(audio[i]);
+  }
+  state.queue = [];
+}
 $("another").addEventListener("click", () => { showHome(); });
 // For integration tests and power users: chordmapOpen(file).
 window.chordmapOpen = openFile;
+picker.multiple = true;
 
 function setStatus(text, err) { const s = $("status"); s.textContent = text; s.classList.toggle("err", !!err); }
 function showHome() {
+  renderLibrary();
   $("results").classList.remove("active");
   $("home").style.display = "";
   setStatus("");
@@ -91,10 +104,12 @@ function showHome() {
 }
 
 async function openFile(file) {
-  state.file = file; state.bpmHint = null; state.taps = []; state.transpose = 0;
+  state.file = file; state.bpmHint = null; state.taps = []; state.transpose = 0; state.loop = null; state.editing = false;
+  state.fileKey = library.fileKey(file); state.shared = false; document.body.classList.remove("shared");
   $("home").style.display = "";
   $("results").classList.remove("active");
-  setStatus("Decoding " + file.name + "…");
+  const q = state.queue.length ? " (" + state.queue[0] + " of " + state.queue[1] + ")" : "";
+  setStatus("Decoding " + file.name + q + "…");
   try {
     const buf = await file.arrayBuffer();
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -125,9 +140,14 @@ async function analyze() {
   state.analysis = JSON.parse(res.json);
   state.sheet = res.sheet;
   state.capo = state.analysis.guitar.capo;
+  // The same file seen before gets its corrections back.
+  const saved = state.bpmHint ? null : await library.load(state.fileKey);
+  if (saved && saved.analysis && saved.analysis.duration === state.analysis.duration) { state.analysis = saved.analysis; state.capo = state.analysis.guitar.capo; }
+  await library.save(state.fileKey, state.file.name, state.analysis);
+  renderLibrary();
   const secs = ((performance.now() - t0) / 1000).toFixed(1);
   $("fname").textContent = state.file.name;
-  $("fmeta").textContent = fmtTime(state.analysis.duration) + " · analyzed in " + secs + " s on this device";
+  $("fmeta").textContent = fmtTime(state.analysis.duration) + " · analyzed in " + secs + " s on this device" + (state.queue.length ? " · " + state.queue[0] + " of " + state.queue[1] : "");
   $("home").style.display = "none";
   $("results").classList.add("active");
   setStatus("");
@@ -209,12 +229,18 @@ function render() {
     shapes.appendChild(el);
   });
   const dia = $("diagrams"); dia.innerHTML = "";
-  Object.values(g.shapes).forEach((shape) => {
+  const uke = state.instrument === "ukulele";
+  (uke ? Object.keys(g.shapes) : Object.values(g.shapes)).forEach((shape) => {
     const c = parseLabel(shape); if (!c) return;
-    const name = spell((c.pc + state.transpose + 120) % 12, shapeTonic, a.key.minor) + c.suffix;
-    const wrap = document.createElement("span"); wrap.innerHTML = diagram(name, (c.pc + state.transpose + 120) % 12, c.suffix);
+    const pc = (c.pc + state.transpose + 120) % 12;
+    const name = spell(pc, uke ? soundingTonic : shapeTonic, a.key.minor) + c.suffix;
+    const svg = uke ? (ukeDiagram(name) || ukeDiagram(SHARP[pc] + c.suffix) || ukeDiagram(FLAT[pc] + c.suffix)) : diagram(name, pc, c.suffix);
+    if (!svg) return;
+    const wrap = document.createElement("span"); wrap.innerHTML = svg;
     dia.appendChild(wrap.firstChild);
   });
+  $("capo-sub").textContent = uke ? "Ukulele shapes for the sounding chords (no capo)." : $("capo-sub").textContent;
+  [...$("instrument").children].forEach((b) => b.classList.toggle("on", b.dataset.v === state.instrument));
   const cs = $("capo-select"); cs.innerHTML = "";
   g.options.forEach((o) => {
     const el = document.createElement("option"); el.value = o.capo;
@@ -226,6 +252,7 @@ function render() {
   for (let i = -6; i <= 6; i++) { const el = document.createElement("option"); el.value = i; el.textContent = i === 0 ? "Original key" : (i > 0 ? "+" : "") + i + " semitones"; ts.appendChild(el); }
   ts.value = state.transpose;
   [...$("show").children].forEach((b) => b.classList.toggle("on", b.dataset.v === state.show));
+  $("edit").classList.toggle("on", state.editing); $("edit").textContent = state.editing ? "Done editing" : "Edit chart"; $("nudge").hidden = !state.editing;
   renderTimeline();
   renderChart();
   const w = $("warnings"); w.innerHTML = "";
@@ -258,6 +285,17 @@ function renderChart() {
     const sec = document.createElement("div"); sec.className = "section";
     const h = document.createElement("h4");
     h.innerHTML = `<span class="dot" style="background:${color(s.label)}"></span>${esc(s.label)} <span class="guess">${esc(s.guess)}</span><span class="time">${fmtTime(s.start)} – ${fmtTime(s.end)}</span>`;
+    if (state.editing) {
+      const g = h.querySelector(".guess"); g.classList.add("editable"); g.title = "Click to rename";
+      g.addEventListener("click", () => {
+        const inp = document.createElement("input"); inp.value = s.guess; inp.className = "rename";
+        g.replaceWith(inp); inp.focus(); inp.select();
+        let finished = false;
+        const done = () => { if (finished) return; finished = true; s.guess = inp.value.trim() || s.guess; touched(); renderChart(); renderTimeline(); };
+        inp.addEventListener("blur", done); inp.addEventListener("change", done);
+        inp.addEventListener("keydown", (k) => { if (k.key === "Enter") done(); if (k.key === "Escape") { inp.value = s.guess; done(); } });
+      });
+    }
     if (!state.shared) {
       const loop = document.createElement("button"); loop.type = "button"; loop.className = "btn ghost small loopbtn";
       const active = state.loop && state.loop.start === s.start;
@@ -279,7 +317,11 @@ function renderChart() {
         el.appendChild(span); prev = b;
       });
       if (bar.beats.length < (a.bars[1] ? a.bars[1].beats.length : 4)) { const p = document.createElement("span"); p.className = "pickup"; p.textContent = "pickup"; el.appendChild(p); }
-      el.addEventListener("click", () => { const p = $("player"); p.currentTime = bar.start; p.play(); });
+      el.addEventListener("click", (ev) => {
+        if (state.editing) { openChordEditor(el, i, ev); return; }
+        if (state.shared) return;
+        const p = $("player"); p.currentTime = bar.start; p.play();
+      });
       grid.appendChild(el);
     }
     sec.appendChild(grid);
@@ -299,6 +341,108 @@ function tick() {
   if (now !== lastBar) { if (lastBar) lastBar.classList.remove("now"); if (now) now.classList.add("now"); lastBar = now; }
   renderNowPlaying(t);
 }
+
+// ---------- editing: fix a chord, rename a section, move the bar lines
+const QUALITIES = [["", "maj"], ["m", "min"], ["7", "7"], ["maj7", "maj7"], ["m7", "m7"]];
+function beatOffset(barIndex) { let n = 0; for (let i = 0; i < barIndex; i++) n += state.analysis.bars[i].beats.length; return n; }
+function openChordEditor(barEl, barIndex, ev) {
+  closeEditor();
+  const a = state.analysis, bar = a.bars[barIndex];
+  const cells = [...barEl.children].filter((c) => !c.classList.contains("pickup"));
+  let beat = cells.findIndex((c) => c === ev.target || c.contains(ev.target)); if (beat < 0) beat = 0;
+  const cur = parseLabel(bar.beats[beat]) || { pc: 0, suffix: "" };
+  const pop = document.createElement("div"); pop.className = "editor"; pop.id = "editor";
+  // Root buttons are named the way the chart is showing them (shapes with
+  // the capo on, or sounding chords); data-pc is always the sounding root.
+  const frame = state.show === "numbers" ? 0 : shift();
+  const name = (pc) => state.show === "numbers" ? (state.analysis.key.minor ? DEGREES_MINOR : DEGREES)[(pc - shownTonicBase() + 120) % 12] : spell((pc + frame + 120) % 12, shownTonic(), state.analysis.key.minor);
+  pop.innerHTML = `<div class="ed-row" data-k="root">${SHARP.map((_, pc) => `<button type="button" data-pc="${pc}" class="${pc === cur.pc ? "on" : ""}">${name(pc)}</button>`).join("")}</div>
+    <div class="ed-row" data-k="q">${QUALITIES.map(([v, t]) => `<button type="button" data-q="${v}" class="${v === cur.suffix ? "on" : ""}">${t}</button>`).join("")}<button type="button" data-q="N">N.C.</button></div>
+    <div class="ed-row"><label class="check"><input type="checkbox" id="ed-bar" checked> whole bar</label><span class="ed-hint">Beat ${beat + 1} of ${bar.beats.length}</span><button type="button" class="btn small" id="ed-close">Done</button></div>`;
+  barEl.after(pop);
+  let pc = cur.pc, q = cur.suffix;
+  const apply = () => {
+    const label = q === "N" ? "N" : SHARP[pc] + q;
+    const whole = pop.querySelector("#ed-bar").checked;
+    for (let k = 0; k < bar.beats.length; k++) if (whole || k === beat) bar.beats[k] = label;
+    rebuildChordsFromBars(); touched();
+    cells.forEach((c, k) => { c.textContent = k > 0 && bar.beats[k] === bar.beats[k - 1] ? "·" : display(bar.beats[k]); c.className = k > 0 && bar.beats[k] === bar.beats[k - 1] ? "beat" : ""; });
+  };
+  pop.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.id === "ed-close") { closeEditor(); renderChart(); return; }
+    if (b.dataset.pc !== undefined) { pc = +b.dataset.pc; if (q === "N") q = ""; }
+    if (b.dataset.q !== undefined) q = b.dataset.q;
+    pop.querySelectorAll("[data-pc]").forEach((x) => x.classList.toggle("on", +x.dataset.pc === pc && q !== "N"));
+    pop.querySelectorAll("[data-q]").forEach((x) => x.classList.toggle("on", x.dataset.q === q));
+    apply();
+  });
+}
+function closeEditor() { const e = $("editor"); if (e) e.remove(); }
+// Chord spans follow the bars: one label per beat, merged into runs.
+function rebuildChordsFromBars() {
+  const a = state.analysis, spans = [];
+  let k = 0;
+  for (const bar of a.bars) {
+    for (let j = 0; j < bar.beats.length; j++, k++) {
+      const start = a.beats[k] ?? bar.start, end = a.beats[k + 1] ?? a.duration, label = bar.beats[j];
+      const last = spans[spans.length - 1];
+      if (last && last.label === label) last.end = end; else spans.push({ start, end, label });
+    }
+  }
+  a.chords = spans;
+}
+// Move every bar line one beat earlier or later (for a missed first beat).
+function nudgeBars(dir) {
+  const a = state.analysis, bpb = a.beatsPerBar || 4;
+  const labels = a.bars.flatMap((b) => b.beats);
+  const cur = a.bars[0].beats.length % bpb; // beats in the pickup bar
+  const phase = (cur + dir + bpb) % bpb;
+  const bars = []; let k = 0;
+  while (k < labels.length) {
+    const end = k === 0 && phase > 0 ? phase : Math.min(labels.length, k + bpb);
+    bars.push({ start: a.beats[k], end: a.beats[end] ?? a.duration, beats: labels.slice(k, end) });
+    k = end;
+  }
+  a.bars = bars;
+  a.downbeats = bars.filter((b) => b.beats.length === bpb).map((b) => b.start);
+  a.sections.forEach((s) => { let i = bars.findIndex((b) => b.start >= s.start - 0.01); if (i < 0) i = bars.length - 1; s.bar = i; s.start = bars[i].start; });
+  touched(); renderChart(); renderTimeline();
+}
+let saveTimer = null;
+function touched() {
+  if (!state.fileKey) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => library.save(state.fileKey, state.file ? state.file.name : state.sharedTitle, state.analysis).then(renderLibrary), 400);
+}
+$("edit").addEventListener("click", () => { state.editing = !state.editing; $("edit").classList.toggle("on", state.editing); $("edit").textContent = state.editing ? "Done editing" : "Edit chart"; $("nudge").hidden = !state.editing; closeEditor(); renderChart(); });
+$("nudge-left").addEventListener("click", () => nudgeBars(-1));
+$("nudge-right").addEventListener("click", () => nudgeBars(1));
+$("instrument").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; state.instrument = b.dataset.v; render(); });
+
+// ---------- library of recent charts (this browser only, charts not audio)
+async function renderLibrary() {
+  const rows = await library.list();
+  const box = $("library"); box.hidden = !rows || !rows.length; if (box.hidden) return;
+  const ul = $("library-list"); ul.innerHTML = "";
+  rows.forEach((r) => {
+    const li = document.createElement("li");
+    const a = r.analysis;
+    li.innerHTML = `<button type="button" class="lib-open"><b>${esc(r.title)}</b><span>${esc(a.key.name)} · ${a.tempo.bpm} BPM · ${fmtTime(a.duration)}${a.guitar.capo ? " · capo " + a.guitar.capo : ""}</span></button><button type="button" class="iconbtn lib-del" title="Forget">×</button>`;
+    li.querySelector(".lib-open").addEventListener("click", () => openSavedChart(r));
+    li.querySelector(".lib-del").addEventListener("click", async () => { await library.remove(r.key); renderLibrary(); });
+    ul.appendChild(li);
+  });
+}
+function openSavedChart(r) {
+  state.shared = true; state.sharedTitle = r.title; state.fileKey = r.key; state.file = null;
+  state.analysis = r.analysis; state.capo = r.analysis.guitar.capo; state.loop = null; state.editing = false;
+  $("fname").textContent = r.title;
+  $("fmeta").textContent = fmtTime(r.analysis.duration) + " · saved chart, drop the audio file to play along";
+  $("home").style.display = "none"; $("results").classList.add("active"); document.body.classList.add("shared");
+  render();
+}
+renderLibrary();
 
 // ---------- practice: loop a section, play it slower without changing pitch
 function setLoop(loop) {
