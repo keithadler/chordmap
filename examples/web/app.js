@@ -99,8 +99,15 @@ async function openFiles(files) {
   state.queue = [];
 }
 $("another").addEventListener("click", () => { showHome(); });
-// For integration tests and power users: chordmapOpen(file).
+// For integration tests and power users: chordmapOpen(file). On localhost,
+// ?demo=<path> opens a file served next to the page (screenshots, tests).
 window.chordmapOpen = openFile;
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+  const demo = new URLSearchParams(location.search).get("demo");
+  if (demo && /^[\w./ -]+$/.test(demo) && !demo.includes("..")) {
+    fetch(demo).then((r) => r.blob()).then((b) => openFile(new File([b], demo.split("/").pop(), { type: b.type || "audio/wav", lastModified: 1700000000000 }))).catch(() => {});
+  }
+}
 picker.multiple = true;
 
 function setStatus(text, err, busy) {
