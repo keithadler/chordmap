@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>chordmap: tempo, key, chords and sections from any song, in your browser</title>
-<meta name="description" content="Drop a song and get its BPM, key, chord chart, sections, capo, and AI stems that are separated on your own device. Free, open source, and the audio never leaves your browser.">
+<title>chordmap: free chords, stems and play-along from your own music, in your browser</title>
+<meta name="description" content="Free. Drop a song you own and get the chord chart, key, tempo and capo, separate the vocals with AI that runs on your device, then loop, slow down, change key and play along. Open source, nothing uploaded.">
 <meta name="theme-color" content="#7c3aed">
 <link rel="icon" href="./icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
@@ -65,7 +65,8 @@
   .hero { text-align: center; padding: 40px 0 10px; }
   .hero h1 { font-size: clamp(38px, 7vw, 68px); margin: 0 0 10px; letter-spacing: -.04em; line-height: 1.02; font-weight: 800; background: linear-gradient(120deg, var(--ink) 30%, var(--accent) 65%, var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .hero p { color: var(--muted); font-size: 19px; margin: 0 auto; max-width: 620px; }
-  .pill { display: inline-flex; align-items: center; gap: 8px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 6px 14px; font-size: 14px; font-weight: 700; margin-top: 16px; }
+  .pills { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 6px 14px; font-size: 14px; font-weight: 700; }
   .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 25%, transparent); }
   .drop { margin: 26px auto 0; max-width: 680px; border: 2px dashed var(--line-strong); background: color-mix(in srgb, var(--card) 80%, transparent); backdrop-filter: blur(10px); border-radius: 22px; padding: 34px 20px; cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s; text-align: center; position: relative; overflow: hidden; }
   .drop::before { content: ""; position: absolute; inset: 0; background: radial-gradient(600px 200px at 50% 120%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%); pointer-events: none; }
@@ -97,7 +98,12 @@
   .sample .map i { display: block; height: 100%; }
   .sample .bars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .sample .bar { cursor: default; }
-  .how { margin-top: 40px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .features { margin-top: 36px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; text-align: left; }
+  .features div { background: linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; }
+  .features i { font-style: normal; font-size: 26px; width: 44px; height: 44px; border-radius: 12px; background: var(--accent-soft); display: grid; place-items: center; margin-bottom: 4px; }
+  .features b { font-size: 17px; letter-spacing: -.01em; }
+  .features span { color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .how { margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
   .how div { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
   .how b { display: block; margin-bottom: 4px; } .how span { color: var(--muted); font-size: 14px; }
   .library { max-width: 680px; margin: 26px auto 0; text-align: left; }
@@ -221,7 +227,7 @@
   @media (max-width: 600px) { #nowplaying { grid-template-columns: repeat(7, 1fr); } .ring { display: none; } }
 
   @media print {
-    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how, .loopbtn, #edit, #nudge, .editor, .library, .sky, .sample, .vizrow, .viz, .live { display: none !important; }
+    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how, .loopbtn, #edit, #nudge, .editor, .library, .sky, .sample, .vizrow, .viz, .live, .features, .pills { display: none !important; }
     body { background: #fff; color: #000; font-size: 12px; }
     .tiles { grid-template-columns: repeat(3, 1fr); }
     .tile, .bar { box-shadow: none; border-color: #bbb; break-inside: avoid; }
@@ -247,21 +253,33 @@
   </header>
 
   <section class="hero" id="home">
-    <h1>Every song, charted.</h1>
-    <p>Drop a song and get its tempo, key, chords, sections and the capo that makes it easiest to play.</p>
-    <div class="pill">Nothing leaves your browser</div>
+    <h1>Your music. Charts, stems, play‑along.<br>Free.</h1>
+    <p>Drop any song you own. Get the chords, key and tempo, pull the vocals out with AI that runs on your own device, then loop it, slow it down, change the key and play along.</p>
+    <div class="pills">
+      <span class="pill">Free and open source</span>
+      <span class="pill">Nothing leaves your browser</span>
+      <span class="pill">AI stems run on your device</span>
+    </div>
     <div class="drop" id="drop" role="button" tabindex="0">
       <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-      <div class="big">Drop an audio file here</div>
-      <div class="sub">or click to choose. MP3, M4A, WAV, FLAC and OGG, whatever your browser can play. Several at once is fine.</div>
+      <div class="big">Drop a song here</div>
+      <div class="sub">or click to choose. MP3, M4A, WAV, FLAC and OGG, whatever your browser can play. Several at once is fine. No account, no upload, no fee.</div>
     </div>
     <div class="status" id="status" aria-live="polite"></div>
     <div class="library" id="library" hidden>
       <h3>Recent charts <small>kept in this browser, charts only, never audio</small></h3>
       <ul id="library-list"></ul>
     </div>
+    <div class="features">
+      <div><i>🎼</i><b>Chart it</b><span>Tempo with tap and half or double, key, chords on every beat, bars grouped into verse, chorus or hook, the capo that makes it easiest, and fingering diagrams for guitar or ukulele.</span></div>
+      <div><i>🎤</i><b>Free AI stems</b><span>Vocals, drums, bass and the rest, separated on your own machine. Instrumental and a cappella in seconds on a GPU. The model downloads in; your song never goes out.</span></div>
+      <div><i>🎸</i><b>Play along</b><span>Loop any section, play at 50 to 100 percent speed without changing pitch, shift the key up or down six semitones, mute the vocals or the drums, or play over the beat alone.</span></div>
+      <div><i>🌈</i><b>See it</b><span>A waveform map tinted by section, a footer that shows the last three, current and next three chords, and full-screen visualizers for the band or for the room.</span></div>
+      <div><i>✏️</i><b>Make it yours</b><span>Fix any chord or section name, keep charts in this browser, share a chart by link, download text, ChordPro or MIDI, print a clean sheet.</span></div>
+      <div><i>🔒</i><b>Yours to keep</b><span>MIT licensed, no analytics, works offline after the first visit, installs as an app on phone and desktop. Band, hip hop and dance modes.</span></div>
+    </div>
     <div class="sample" aria-hidden="true">
-      <span class="cap">What you get</span>
+      <span class="cap">What a chart looks like</span>
       <div class="stats"><span><b>92</b>BPM · 4/4</span><span><b>G</b>major</span><span><b>Capo 0</b></span><span><b>A B A B C B</b></span></div>
       <div class="map"><i style="width:22%;background:var(--sA)"></i><i style="width:18%;background:var(--sB)"></i><i style="width:20%;background:var(--sA)"></i><i style="width:18%;background:var(--sB)"></i><i style="width:10%;background:var(--sC)"></i><i style="width:12%;background:var(--sB)"></i></div>
       <div class="bars">
@@ -272,9 +290,9 @@
       </div>
     </div>
     <div class="how">
-      <div><b>How it works</b><span>Classic music analysis for the chart, no models needed. Stem separation uses AI that runs on your own device in the browser, with WebGPU when you have it. The models download in; your audio never goes out.</span></div>
-      <div><b>What it gets right</b><span>Steady-tempo pop, rock, folk, worship and hip hop in 4/4 or 3/4, with major, minor and seventh chords. Around three in four chords on a typical mix, better after charting from the stems. Recordings tuned away from A440 are corrected.</span></div>
-      <div><b>What it gets wrong</b><span>Suspended, diminished and slash chords come back as the nearest triad or seventh. Rubato and tempo changes confuse the beat grid. Half or double tempo happens; the buttons fix it. Edit mode fixes the rest.</span></div>
+      <div><b>How it works</b><span>Classic music analysis for the chart, written in Rust and run as WebAssembly. Stem separation is the MIT KUIELab MDX-Net model running in your browser, on the GPU when you have one. Nothing is sent anywhere.</span></div>
+      <div><b>What it gets right</b><span>Steady-tempo pop, rock, folk, worship and hip hop in 4/4 or 3/4, with major, minor and seventh chords. Around three in four chords on a typical mix, better after charting from the stems. Vocals separate cleanly.</span></div>
+      <div><b>What it gets wrong</b><span>Suspended, diminished and slash chords come back as the nearest chord. Rubato confuses the beat grid. Half or double tempo happens; the buttons fix it. Stems from dense mixes have some bleed. Edit mode fixes the rest.</span></div>
     </div>
   </section>
 

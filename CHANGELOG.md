@@ -34,6 +34,8 @@
   tempo, and "chart again from the stems".
 - Genre switch (band, hip hop, dance): tempo prior at 120, 90 or 128 BPM,
   hook and drop section names, sparse-harmony detection with a warning.
+- Landing page rewritten around free charts, on-device AI stems and
+  play-along from your own music, with six feature cards.
 - Every place the AI appears says it runs on the device and uploads nothing.
 - Installable app: PNG icons, maskable icons, install button, iOS hint.
 - Resampler tabulates its kernel (about ten times faster).
