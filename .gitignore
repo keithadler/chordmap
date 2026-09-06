@@ -1,0 +1,11 @@
+/target
+**/target
+/pkg
+/examples/web/pkg
+node_modules
+*.log
+.DS_Store
+/tmp
+/testdata/local
+/.claude
+/examples/web/local

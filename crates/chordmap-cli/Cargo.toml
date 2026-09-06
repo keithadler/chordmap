@@ -1,0 +1,21 @@
+[package]
+name = "chordmap-cli"
+description = "Command line for chordmap: tempo, key, chords and sections from an audio file"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "chordmap"
+path = "src/main.rs"
+
+[dependencies]
+chordmap.workspace = true
+serde_json.workspace = true
+symphonia = { version = "0.5", features = ["mp3", "aac", "isomp4"] }

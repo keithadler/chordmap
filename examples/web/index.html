@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>chordmap: tempo, key, chords and sections from any song, in your browser</title>
+<meta name="description" content="Drop a song and get its BPM, key, chord chart, section map and a capo suggestion. Free, open source, and the audio never leaves your browser.">
+<meta name="theme-color" content="#7c3aed">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237c3aed'/%3E%3Cpath d='M7 22V10M13 22V14M19 22V8M25 22V16' stroke='white' stroke-width='3.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<script>
+  (function () { try { var t = localStorage.getItem("chordmap.theme"); var dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches); document.documentElement.dataset.theme = dark ? "dark" : "light"; } catch (e) { document.documentElement.dataset.theme = "light"; } })();
+</script>
+<style>
+  :root {
+    --bg: #f5f4f9; --bg-grad: radial-gradient(1200px 500px at 50% -10%, #e9ddff 0%, transparent 60%);
+    --card: #ffffff; --ink: #14121f; --muted: #5f5b70; --line: #e5e2ee; --line-strong: #cbc5da;
+    --accent: #7c3aed; --accent-ink: #ffffff; --accent-soft: #f0e9ff; --accent-glow: 0 10px 30px -12px rgba(124, 58, 237, .45);
+    --ok: #15803d; --ok-soft: #e3f5e9; --warn: #92400e; --warn-soft: #fdf1df; --err: #b91c1c; --err-soft: #fde8e8;
+    --radius: 16px; --shadow: 0 1px 2px rgba(20, 18, 31, .06), 0 10px 30px -18px rgba(20, 18, 31, .25);
+    --sA: #7c3aed; --sB: #0ea5e9; --sC: #f59e0b; --sD: #10b981; --sE: #ef4444; --sF: #ec4899; --sG: #6366f1; --sH: #84cc16;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e0c14; --bg-grad: radial-gradient(1200px 500px at 50% -10%, #2a1a4d 0%, transparent 60%);
+    --card: #17141f; --ink: #ece9f4; --muted: #9c97ad; --line: #2a2536; --line-strong: #3d3650;
+    --accent: #a78bfa; --accent-ink: #14102a; --accent-soft: #2a2145; --accent-glow: 0 10px 30px -12px rgba(167, 139, 250, .5);
+    --ok: #4ade80; --ok-soft: #10301d; --warn: #f2b55c; --warn-soft: #3a2a0f; --err: #ff8a80; --err-soft: #3d1b19;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 12px 32px -18px rgba(0, 0, 0, .8);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg-grad), var(--bg); background-attachment: fixed; color: var(--ink); font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body.dragging::after { content: "Drop to analyze"; position: fixed; inset: 0; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 4px dashed var(--accent); display: grid; place-items: center; font-size: 28px; font-weight: 700; color: var(--accent); pointer-events: none; z-index: 50; }
+  a { color: var(--accent); }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px 64px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; font-weight: 700; font-size: 20px; letter-spacing: -.01em; }
+  .brand svg { width: 28px; height: 28px; }
+  nav { display: flex; align-items: center; gap: 4px; }
+  nav a { color: var(--muted); text-decoration: none; margin-left: 18px; font-size: 15px; }
+  nav a:hover { color: var(--ink); }
+  .theme { display: inline-flex; align-items: center; gap: 6px; margin-left: 14px; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; font-size: 14px; cursor: pointer; color: var(--muted); }
+  .hero { text-align: center; padding: 28px 0 22px; }
+  .hero h1 { font-size: clamp(30px, 5vw, 44px); margin: 0 0 8px; letter-spacing: -.02em; line-height: 1.1; }
+  .hero p { color: var(--muted); font-size: 18px; margin: 0 auto; max-width: 640px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 6px 14px; font-size: 14px; font-weight: 600; margin-top: 14px; }
+  .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  .drop { margin: 22px auto 0; max-width: 620px; border: 2px dashed var(--line-strong); background: var(--card); border-radius: var(--radius); padding: 34px 20px; cursor: pointer; transition: all .15s; text-align: center; }
+  .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .drop .big { font-size: 19px; font-weight: 600; } .drop .sub { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 12px; padding: 10px 16px; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; box-shadow: var(--accent-glow); }
+  .btn.ghost { background: var(--card); color: var(--ink); border: 1px solid var(--line); box-shadow: none; }
+  .btn.small { padding: 6px 10px; font-size: 14px; border-radius: 9px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .status { text-align: center; color: var(--muted); margin-top: 16px; min-height: 24px; }
+  .status.err { color: var(--err); }
+  .how { margin-top: 40px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .how div { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
+  .how b { display: block; margin-bottom: 4px; } .how span { color: var(--muted); font-size: 14px; }
+
+  #results { display: none; }
+  #results.active { display: block; }
+  .file-line { display: flex; align-items: center; gap: 12px; margin: 6px 0 14px; flex-wrap: wrap; }
+  .file-line .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
+  .file-line .muted { color: var(--muted); font-size: 14px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+  .tile { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
+  .tile .label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  .tile .value { font-size: 34px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; margin-top: 4px; }
+  .tile .value small { font-size: 16px; font-weight: 600; color: var(--muted); margin-left: 4px; }
+  .tile .sub { color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .tile .row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; margin-top: 16px; box-shadow: var(--shadow); }
+  .panel h3 { margin: 0 0 12px; font-size: 16px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
+  .field { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+  .field select, .field input { padding: 7px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; font-size: 14px; }
+  .seg button.on { background: var(--accent); color: var(--accent-ink); }
+  .timeline { position: relative; height: 44px; border-radius: 10px; overflow: hidden; display: flex; margin-top: 10px; cursor: pointer; border: 1px solid var(--line); }
+  .timeline .sec { height: 100%; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px; opacity: .85; border-right: 1px solid rgba(255,255,255,.4); overflow: hidden; white-space: nowrap; }
+  .timeline .head { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); left: 0; pointer-events: none; }
+  audio { width: 100%; margin-top: 12px; }
+  .section { margin-top: 18px; }
+  .section h4 { margin: 0 0 8px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .section h4 .dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .section h4 .guess { color: var(--muted); font-weight: 500; }
+  .section h4 .time { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: auto; }
+  .bars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  @media (max-width: 560px) { .bars { grid-template-columns: repeat(2, 1fr); } }
+  .bar { background: var(--bg); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; min-height: 44px; display: flex; gap: 8px; align-items: center; font-weight: 700; font-size: 17px; cursor: pointer; flex-wrap: wrap; }
+  .bar:hover { border-color: var(--accent); }
+  .bar.now { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent); }
+  .bar .beat { opacity: .35; font-weight: 500; }
+  .bar .pickup { color: var(--muted); font-size: 12px; font-weight: 500; }
+  .warn { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 8px 12px; font-size: 14px; margin-top: 10px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .tip { margin-top: 16px; font-size: 14px; color: var(--muted); }
+  .tip a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  footer { margin-top: 40px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 18px; }
+  footer p { margin: 6px 0; }
+  .shapes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .shape { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 3px 8px; font-size: 14px; }
+  .shape b { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="./">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M7 22V10M13 22V14M19 22V8M25 22V16" stroke="var(--accent-ink)" stroke-width="3.5" stroke-linecap="round"/></svg>
+      chordmap
+    </a>
+    <nav>
+      <a href="https://github.com/keithadler/chordmap" target="_blank" rel="noopener">Source</a>
+      <a href="https://github.com/keithadler/chordmap#limits" target="_blank" rel="noopener">Limits</a>
+      <button class="theme" id="theme" type="button" aria-label="Toggle dark mode">◐ Theme</button>
+    </nav>
+  </header>
+
+  <section class="hero" id="home">
+    <h1>Every song, charted.</h1>
+    <p>Drop a song and get its tempo, key, chords, sections and the capo that makes it easiest to play.</p>
+    <div class="pill">Nothing leaves your browser</div>
+    <div class="drop" id="drop" role="button" tabindex="0">
+      <div class="big">Drop an audio file here</div>
+      <div class="sub">or click to choose. MP3, M4A, WAV, FLAC and OGG, whatever your browser can play.</div>
+    </div>
+    <div class="status" id="status" aria-live="polite"></div>
+    <div class="how">
+      <div><b>How it works</b><span>Classic music analysis, no models to download: onset autocorrelation for tempo, chroma templates for chords, Krumhansl profiles for key, a self-similarity matrix for sections.</span></div>
+      <div><b>What it gets right</b><span>Steady-tempo pop, rock, folk and worship songs with major and minor chords. Around three in four chords on a typical mix.</span></div>
+      <div><b>What it gets wrong</b><span>Sevenths, inversions and jazz voicings come back as plain triads. Rubato and tempo changes confuse the beat grid. Half or double tempo happens; the buttons fix it.</span></div>
+    </div>
+  </section>
+
+  <section id="results">
+    <div class="file-line">
+      <button class="btn ghost small" id="another" type="button">← Another song</button>
+      <span class="name" id="fname"></span>
+      <span class="muted" id="fmeta"></span>
+    </div>
+    <div class="tiles">
+      <div class="tile">
+        <div class="label">Tempo</div>
+        <div class="value"><span id="bpm"></span><small>BPM</small></div>
+        <div class="sub" id="bpm-sub"></div>
+        <div class="row">
+          <button class="btn ghost small" id="half" type="button">½</button>
+          <button class="btn ghost small" id="double" type="button">×2</button>
+          <button class="btn ghost small" id="tap" type="button">Tap tempo</button>
+          <button class="btn ghost small" id="reset-bpm" type="button" hidden>Reset</button>
+        </div>
+      </div>
+      <div class="tile">
+        <div class="label">Key</div>
+        <div class="value" id="key"></div>
+        <div class="sub" id="key-sub"></div>
+      </div>
+      <div class="tile">
+        <div class="label">Guitar</div>
+        <div class="value" id="capo"></div>
+        <div class="sub" id="capo-sub"></div>
+        <div class="shapes" id="shapes"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="controls">
+        <label class="field">Capo
+          <select id="capo-select"></select>
+        </label>
+        <label class="field">Transpose
+          <select id="transpose"></select>
+        </label>
+        <span class="field">Show
+          <span class="seg" id="show">
+            <button type="button" data-v="shapes" class="on">Shapes to play</button>
+            <button type="button" data-v="sounding">Sounding chords</button>
+          </span>
+        </span>
+      </div>
+      <div class="timeline" id="timeline" title="Click to jump"></div>
+      <audio id="player" controls preload="metadata"></audio>
+    </div>
+
+    <div id="warnings"></div>
+    <div id="chart"></div>
+
+    <div class="actions">
+      <button class="btn" id="copy" type="button">Copy chord sheet</button>
+      <button class="btn ghost" id="dl-sheet" type="button">Download .txt</button>
+      <button class="btn ghost" id="dl-json" type="button">Download JSON</button>
+    </div>
+    <div class="tip">Free, no ads, no accounts. If it saved you a subscription, a tip is welcome: <a href="https://venmo.com/u/Keith-Adler-1" target="_blank" rel="noopener">Venmo @Keith-Adler-1</a></div>
+  </section>
+
+  <footer>
+    <p><b>chordmap</b> is open source (MIT). The audio is decoded and analyzed on this device and is never uploaded. There is no analytics, no account and no server.</p>
+    <p>Chords are major and minor triads only. Section names like "chorus" are guesses from repetition and loudness. Check the chart against your ears.</p>
+  </footer>
+</div>
+<input type="file" id="picker" accept="audio/*,.mp3,.m4a,.wav,.flac,.ogg,.aac,.aiff" class="sr" aria-hidden="true">
+<script type="module" src="./app.js?v=dev"></script>
+</body>
+</html>

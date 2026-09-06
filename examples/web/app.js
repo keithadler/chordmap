@@ -1,0 +1,290 @@
+// chordmap web app. Decodes audio in the browser, analyzes it in a worker
+// running the Rust engine, and draws the chart. No network calls.
+
+const $ = (id) => document.getElementById(id);
+const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const FLAT = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+const COLORS = ["--sA", "--sB", "--sC", "--sD", "--sE", "--sF", "--sG", "--sH"];
+
+const state = {
+  file: null, samples: null, sampleRate: 0, url: null,
+  analysis: null, sheet: "", bpmHint: null,
+  capo: 0, transpose: 0, show: "shapes", taps: [],
+};
+
+// ---------- theme
+$("theme").addEventListener("click", () => {
+  const dark = document.documentElement.dataset.theme !== "dark";
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  try { localStorage.setItem("chordmap.theme", dark ? "dark" : "light"); } catch (e) { /* private mode */ }
+});
+
+// ---------- worker
+const worker = new Worker("./worker.js?v=dev", { type: "module" });
+let nextId = 1;
+const pending = new Map();
+worker.onmessage = (e) => {
+  const p = pending.get(e.data.id);
+  if (!p) return;
+  pending.delete(e.data.id);
+  e.data.ok ? p.resolve(e.data) : p.reject(new Error(e.data.error));
+};
+worker.onerror = (e) => { setStatus("The analysis engine failed to load: " + (e.message || "unknown error"), true); };
+function runAnalysis(options) {
+  const id = nextId++;
+  // The worker gets its own copy so the page keeps the samples for re-runs.
+  const copy = new Float32Array(state.samples);
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    worker.postMessage({ id, samples: copy, sampleRate: state.sampleRate, options }, [copy.buffer]);
+  });
+}
+
+// ---------- input
+const drop = $("drop"), picker = $("picker");
+drop.addEventListener("click", () => picker.click());
+drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); picker.click(); } });
+picker.addEventListener("change", () => { if (picker.files[0]) openFile(picker.files[0]); picker.value = ""; });
+// The overlay is shown while dragover events keep arriving and cleared a
+// moment after they stop, which also covers a drag that leaves the window.
+let dragTimer = null;
+["dragenter", "dragover"].forEach((ev) => document.addEventListener(ev, (e) => {
+  e.preventDefault();
+  if (!(e.dataTransfer && [...e.dataTransfer.types].includes("Files"))) return;
+  document.body.classList.add("dragging");
+  clearTimeout(dragTimer); dragTimer = setTimeout(() => document.body.classList.remove("dragging"), 250);
+}));
+["dragleave", "drop"].forEach((ev) => document.addEventListener(ev, (e) => { e.preventDefault(); if (ev === "drop" || e.relatedTarget === null) { clearTimeout(dragTimer); document.body.classList.remove("dragging"); } }));
+document.addEventListener("drop", (e) => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) openFile(f); });
+$("another").addEventListener("click", () => { showHome(); });
+// For integration tests and power users: chordmapOpen(file).
+window.chordmapOpen = openFile;
+
+function setStatus(text, err) { const s = $("status"); s.textContent = text; s.classList.toggle("err", !!err); }
+function showHome() {
+  $("results").classList.remove("active");
+  $("home").style.display = "";
+  setStatus("");
+  const p = $("player"); p.pause();
+}
+
+async function openFile(file) {
+  state.file = file; state.bpmHint = null; state.taps = []; state.transpose = 0;
+  $("home").style.display = "";
+  $("results").classList.remove("active");
+  setStatus("Decoding " + file.name + "…");
+  try {
+    const buf = await file.arrayBuffer();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const audio = await ctx.decodeAudioData(buf.slice(0));
+    ctx.close && ctx.close();
+    const n = audio.length, ch = audio.numberOfChannels;
+    const mono = new Float32Array(n);
+    for (let c = 0; c < ch; c++) {
+      const d = audio.getChannelData(c);
+      for (let i = 0; i < n; i++) mono[i] += d[i] / ch;
+    }
+    state.samples = mono; state.sampleRate = audio.sampleRate;
+    if (state.url) URL.revokeObjectURL(state.url);
+    state.url = URL.createObjectURL(file);
+    $("player").src = state.url;
+    await analyze();
+  } catch (err) {
+    setStatus("Could not read that file: " + (err && err.message ? err.message : err), true);
+  }
+}
+
+async function analyze() {
+  setStatus("Listening for the beat, the key and the chords…");
+  const t0 = performance.now();
+  const options = {};
+  if (state.bpmHint) options.bpmHint = state.bpmHint;
+  const res = await runAnalysis(options);
+  state.analysis = JSON.parse(res.json);
+  state.sheet = res.sheet;
+  state.capo = state.analysis.guitar.capo;
+  const secs = ((performance.now() - t0) / 1000).toFixed(1);
+  $("fname").textContent = state.file.name;
+  $("fmeta").textContent = fmtTime(state.analysis.duration) + " · analyzed in " + secs + " s on this device";
+  $("home").style.display = "none";
+  $("results").classList.add("active");
+  setStatus("");
+  render();
+}
+
+// ---------- helpers
+function fmtTime(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+function parseLabel(l) {
+  if (l === "N") return null;
+  const minor = l.endsWith("m");
+  const name = minor ? l.slice(0, -1) : l;
+  let pc = SHARP.indexOf(name); if (pc < 0) pc = FLAT.indexOf(name);
+  return pc < 0 ? null : { pc, minor };
+}
+function keyUsesFlats(tonicPc, minor) { const maj = minor ? (tonicPc + 3) % 12 : tonicPc; return [5, 10, 3, 8, 1, 6].includes(maj); }
+function shift() { return state.show === "shapes" ? state.transpose - state.capo : state.transpose; }
+function spellFlats() {
+  const a = state.analysis; const k = parseLabel(a.key.tonic + (a.key.minor ? "m" : ""));
+  return keyUsesFlats(((k ? k.pc : 0) + shift() + 120) % 12, a.key.minor);
+}
+function display(label) {
+  const c = parseLabel(label); if (!c) return "N.C.";
+  const pc = (c.pc + shift() + 120) % 12;
+  return (spellFlats() ? FLAT : SHARP)[pc] + (c.minor ? "m" : "");
+}
+function keyName() {
+  const a = state.analysis; const k = parseLabel(a.key.tonic + (a.key.minor ? "m" : ""));
+  const pc = ((k ? k.pc : 0) + state.transpose + 120) % 12;
+  return (keyUsesFlats(pc, a.key.minor) ? FLAT : SHARP)[pc] + (a.key.minor ? " minor" : " major");
+}
+
+// ---------- render
+function render() {
+  const a = state.analysis;
+  $("bpm").textContent = a.tempo.bpm.toFixed(1);
+  const alts = a.tempo.alternatives.map((b) => b.toFixed(0)).join(", ");
+  $("bpm-sub").textContent = (a.tempo.confidence > 0.5 ? "Confident." : "Could be half or double.") + (alts ? " Also plausible: " + alts + "." : "");
+  $("reset-bpm").hidden = !state.bpmHint;
+  $("key").textContent = keyName();
+  $("key-sub").textContent = (a.key.confidence < 0.05 ? "Close call, could also be " : "Runner-up: ") + a.key.alternative + ".";
+  const g = a.guitar;
+  $("capo").textContent = g.capo ? "Capo " + g.capo : "No capo";
+  const opt = g.options.find((o) => o.capo === g.capo) || {};
+  const none = g.options.find((o) => o.capo === 0) || {};
+  $("capo-sub").textContent = g.capo
+    ? "Turns " + fmtTime(none.hardSeconds || 0) + " of barre chords into " + fmtTime(opt.hardSeconds || 0) + "."
+    : "The open shapes already fit this song.";
+  const shapes = $("shapes"); shapes.innerHTML = "";
+  Object.entries(g.shapes).forEach(([sounding, shape]) => {
+    const el = document.createElement("span"); el.className = "shape";
+    el.innerHTML = g.capo ? `${esc(sounding)} → <b>${esc(shape)}</b>` : `<b>${esc(sounding)}</b>`;
+    shapes.appendChild(el);
+  });
+  const cs = $("capo-select"); cs.innerHTML = "";
+  g.options.forEach((o) => {
+    const el = document.createElement("option"); el.value = o.capo;
+    el.textContent = (o.capo === 0 ? "None" : "Fret " + o.capo) + (o.capo === g.capo ? " (suggested)" : "") + " · " + fmtTime(o.hardSeconds) + " barre";
+    cs.appendChild(el);
+  });
+  cs.value = state.capo;
+  const ts = $("transpose"); ts.innerHTML = "";
+  for (let i = -6; i <= 6; i++) { const el = document.createElement("option"); el.value = i; el.textContent = i === 0 ? "Original key" : (i > 0 ? "+" : "") + i + " semitones"; ts.appendChild(el); }
+  ts.value = state.transpose;
+  [...$("show").children].forEach((b) => b.classList.toggle("on", b.dataset.v === state.show));
+  renderTimeline();
+  renderChart();
+  const w = $("warnings"); w.innerHTML = "";
+  a.warnings.forEach((t) => { const d = document.createElement("div"); d.className = "warn"; d.textContent = t; w.appendChild(d); });
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function color(label) { return "var(" + COLORS[(label.charCodeAt(0) - 65) % COLORS.length] + ")"; }
+
+function renderTimeline() {
+  const a = state.analysis, tl = $("timeline"); tl.innerHTML = "";
+  a.sections.forEach((s) => {
+    const el = document.createElement("div"); el.className = "sec";
+    el.style.width = ((s.end - s.start) / a.duration * 100) + "%";
+    el.style.background = color(s.label);
+    el.textContent = s.label;
+    el.title = s.label + " · " + s.guess + " · " + fmtTime(s.start);
+    tl.appendChild(el);
+  });
+  const head = document.createElement("div"); head.className = "head"; head.id = "head"; tl.appendChild(head);
+}
+$("timeline").addEventListener("click", (e) => {
+  const r = $("timeline").getBoundingClientRect();
+  const p = $("player"); p.currentTime = (e.clientX - r.left) / r.width * state.analysis.duration; p.play();
+});
+
+function renderChart() {
+  const a = state.analysis, root = $("chart"); root.innerHTML = "";
+  a.sections.forEach((s, si) => {
+    const endBar = si + 1 < a.sections.length ? a.sections[si + 1].bar : a.bars.length;
+    const sec = document.createElement("div"); sec.className = "section";
+    const h = document.createElement("h4");
+    h.innerHTML = `<span class="dot" style="background:${color(s.label)}"></span>${esc(s.label)} <span class="guess">${esc(s.guess)}</span><span class="time">${fmtTime(s.start)} – ${fmtTime(s.end)}</span>`;
+    sec.appendChild(h);
+    const grid = document.createElement("div"); grid.className = "bars";
+    const from = si === 0 ? 0 : s.bar;
+    for (let i = from; i < endBar; i++) {
+      const bar = a.bars[i];
+      const el = document.createElement("div"); el.className = "bar"; el.dataset.start = bar.start; el.dataset.end = bar.end; el.dataset.i = i;
+      let prev = null;
+      bar.beats.forEach((b) => {
+        const span = document.createElement("span");
+        if (b === prev) { span.className = "beat"; span.textContent = "·"; } else { span.textContent = display(b); }
+        el.appendChild(span); prev = b;
+      });
+      if (bar.beats.length < (a.bars[1] ? a.bars[1].beats.length : 4)) { const p = document.createElement("span"); p.className = "pickup"; p.textContent = "pickup"; el.appendChild(p); }
+      el.addEventListener("click", () => { const p = $("player"); p.currentTime = bar.start; p.play(); });
+      grid.appendChild(el);
+    }
+    sec.appendChild(grid);
+    root.appendChild(sec);
+  });
+}
+
+// ---------- playback highlight (timeupdate keeps working when the tab is hidden)
+let lastBar = null;
+function tick() {
+  if (!state.analysis) return;
+  const t = $("player").currentTime;
+  $("head").style.left = (t / state.analysis.duration * 100) + "%";
+  const bars = $("chart").querySelectorAll(".bar");
+  let now = null;
+  for (const b of bars) { if (t >= +b.dataset.start && t < +b.dataset.end) { now = b; break; } }
+  if (now !== lastBar) { if (lastBar) lastBar.classList.remove("now"); if (now) now.classList.add("now"); lastBar = now; }
+}
+$("player").addEventListener("timeupdate", tick);
+(function raf() { if (!$("player").paused) tick(); requestAnimationFrame(raf); })();
+
+// ---------- controls
+$("capo-select").addEventListener("change", (e) => { state.capo = +e.target.value; renderChart(); });
+$("transpose").addEventListener("change", (e) => { state.transpose = +e.target.value; $("key").textContent = keyName(); renderChart(); });
+$("show").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; state.show = b.dataset.v; [...$("show").children].forEach((x) => x.classList.toggle("on", x === b)); renderChart(); });
+$("half").addEventListener("click", () => { state.bpmHint = state.analysis.tempo.bpm / 2; analyze(); });
+$("double").addEventListener("click", () => { state.bpmHint = state.analysis.tempo.bpm * 2; analyze(); });
+$("reset-bpm").addEventListener("click", () => { state.bpmHint = null; analyze(); });
+$("tap").addEventListener("click", () => {
+  const now = performance.now();
+  if (state.taps.length && now - state.taps[state.taps.length - 1] > 2500) state.taps = [];
+  state.taps.push(now);
+  const n = state.taps.length;
+  if (n < 2) { $("bpm-sub").textContent = "Keep tapping on the beat…"; return; }
+  const gaps = []; for (let i = 1; i < n; i++) gaps.push(state.taps[i] - state.taps[i - 1]);
+  gaps.sort((a, b) => a - b);
+  const bpm = 60000 / gaps[Math.floor(gaps.length / 2)];
+  $("bpm-sub").textContent = "Tapped " + bpm.toFixed(0) + " BPM (" + n + " taps). " + (n >= 4 ? "Re-analyzing…" : "Tap a few more.");
+  if (n >= 4) { state.bpmHint = bpm; state.taps = []; analyze(); }
+});
+
+// ---------- export
+function sheetText() {
+  // Re-spell the engine's sheet for the chosen capo and transpose.
+  const a = state.analysis;
+  let out = a.tempo.bpm + " BPM, " + keyName() + "\n";
+  if (state.show === "shapes" && state.capo) out += "Capo " + state.capo + ", shapes as played\n";
+  else if (state.transpose) out += "Transposed " + (state.transpose > 0 ? "+" : "") + state.transpose + "\n";
+  a.sections.forEach((s, si) => {
+    const endBar = si + 1 < a.sections.length ? a.sections[si + 1].bar : a.bars.length;
+    out += "\n[" + s.label + " " + s.guess + "]\n";
+    let line = "";
+    const from = si === 0 ? 0 : s.bar;
+    for (let i = from; i < endBar; i++) {
+      let cell = "", prev = null;
+      a.bars[i].beats.forEach((b) => { if (b !== prev) { cell += (cell ? " " : "") + display(b); prev = b; } });
+      line += "| " + cell.padEnd(7);
+      if ((i - from + 1) % 4 === 0) { out += line + "|\n"; line = ""; }
+    }
+    if (line) out += line + "|\n";
+  });
+  return out;
+}
+function download(name, text, type) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function base() { return (state.file.name.replace(/\.[^.]+$/, "") || "song"); }
+$("copy").addEventListener("click", async () => { try { await navigator.clipboard.writeText(sheetText()); $("copy").textContent = "Copied"; setTimeout(() => ($("copy").textContent = "Copy chord sheet"), 1500); } catch (e) { download(base() + " chords.txt", sheetText(), "text/plain"); } });
+$("dl-sheet").addEventListener("click", () => download(base() + " chords.txt", sheetText(), "text/plain"));
+$("dl-json").addEventListener("click", () => download(base() + " chordmap.json", JSON.stringify(state.analysis, null, 2), "application/json"));

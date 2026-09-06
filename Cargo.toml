@@ -1,0 +1,27 @@
+[workspace]
+resolver = "2"
+members = ["crates/chordmap", "crates/chordmap-wasm", "crates/chordmap-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT"
+authors = ["Keith Adler <keith.adler@icloud.com>"]
+repository = "https://github.com/keithadler/chordmap"
+homepage = "https://github.com/keithadler/chordmap"
+keywords = ["music", "audio", "chords", "tempo", "wasm"]
+categories = ["multimedia::audio", "wasm"]
+
+[workspace.dependencies]
+chordmap = { path = "crates/chordmap", version = "0.1.0" }
+rustfft = "6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
