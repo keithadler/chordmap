@@ -78,6 +78,106 @@ fn progression_key_and_chords() {
             .collect::<Vec<_>>()
     );
     assert!(a.bars.iter().filter(|b| b.beats.len() == 4).count() >= 28);
+    assert_eq!(a.meter, "4/4");
+    assert!(a.tuning_cents.abs() < 8.0, "{}", a.tuning_cents);
+}
+
+fn chord_accuracy(a: &chordmap::Analysis, truth: &[&str], beats_per_chord: usize, spb: f32) -> f32 {
+    let mut hits = 0;
+    let mut total = 0;
+    for span in &a.chords {
+        let mut t = span.start + spb / 2.0;
+        while t < span.end {
+            let beat = (t / spb).floor() as usize;
+            total += 1;
+            if span.label == truth[(beat / beats_per_chord) % truth.len()] {
+                hits += 1;
+            }
+            t += spb;
+        }
+    }
+    hits as f32 / total.max(1) as f32
+}
+
+#[test]
+fn sevenths_are_heard_and_not_invented() {
+    let prog = synth::parse_progression("Cmaj7 Am7 Dm7 G7", 4).unwrap();
+    let loops: Vec<SynthChord> = (0..8).flat_map(|_| prog.clone()).collect();
+    let mut x = Vec::new();
+    synth::render_progression(&mut x, 0, &loops, 100.0, Timbre::default(), 1);
+    let a = analyze(&x, SR, &Options::default()).unwrap();
+    let acc = chord_accuracy(&a, &["Cmaj7", "Am7", "Dm7", "G7"], 4, 0.6);
+    assert!(
+        acc >= 0.85,
+        "seventh accuracy {acc}: {:?}",
+        a.chords
+            .iter()
+            .map(|c| c.label.as_str())
+            .collect::<Vec<_>>()
+    );
+    // Plain triads must stay plain.
+    let prog = synth::parse_progression("C G Am F", 4).unwrap();
+    let loops: Vec<SynthChord> = (0..8).flat_map(|_| prog.clone()).collect();
+    let mut x = Vec::new();
+    synth::render_progression(&mut x, 0, &loops, 100.0, Timbre::default(), 1);
+    let a = analyze(&x, SR, &Options::default()).unwrap();
+    let invented = a.chords.iter().filter(|c| c.label.contains('7')).count();
+    assert_eq!(
+        invented,
+        0,
+        "{:?}",
+        a.chords
+            .iter()
+            .map(|c| c.label.as_str())
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn waltz_is_three_four() {
+    let prog = synth::parse_progression("C F G C", 3).unwrap();
+    let loops: Vec<SynthChord> = (0..12).flat_map(|_| prog.clone()).collect();
+    let mut x = Vec::new();
+    synth::render_progression(&mut x, 0, &loops, 120.0, Timbre::default(), 1);
+    let a = analyze(&x, SR, &Options::default()).unwrap();
+    assert_eq!(
+        a.meter,
+        "3/4",
+        "{:?}",
+        a.bars
+            .iter()
+            .take(6)
+            .map(|b| b.beats.clone())
+            .collect::<Vec<_>>()
+    );
+    assert!(a.bars.iter().filter(|b| b.beats.len() == 3).count() >= 40);
+}
+
+#[test]
+fn detuned_recording_is_corrected() {
+    let prog = synth::parse_progression("C G Am F", 4).unwrap();
+    let loops: Vec<SynthChord> = (0..8).flat_map(|_| prog.clone()).collect();
+    let mut x = Vec::new();
+    synth::render_progression(
+        &mut x,
+        0,
+        &loops,
+        100.0,
+        Timbre {
+            detune_cents: -35.0,
+            ..Default::default()
+        },
+        1,
+    );
+    let a = analyze(&x, SR, &Options::default()).unwrap();
+    assert!(
+        (a.tuning_cents + 35.0).abs() <= 7.5,
+        "tuning {}",
+        a.tuning_cents
+    );
+    assert_eq!(a.key.name, "C major");
+    let acc = chord_accuracy(&a, &["C", "G", "Am", "F"], 4, 0.6);
+    assert!(acc >= 0.9, "accuracy {acc}");
 }
 
 #[test]
@@ -92,11 +192,13 @@ fn sections_come_back_as_aba() {
         rolloff: 1.2,
         bass: 0.6,
         click: 0.5,
+        ..Default::default()
     };
     let dark = Timbre {
         rolloff: 2.5,
         bass: 0.9,
         click: 0.3,
+        ..Default::default()
     };
     let mut x = Vec::new();
     let mut at = 0;

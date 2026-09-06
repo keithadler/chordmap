@@ -1,6 +1,6 @@
 //! The whole pipeline, from samples to a report.
 
-use crate::chords::{self, Chord, NO_CHORD};
+use crate::chords::{self, Chord, Quality};
 use crate::chroma;
 use crate::dsp::{self, SR};
 use crate::features::{self, N_MELS};
@@ -17,7 +17,7 @@ pub struct Options {
     /// Prefer the tempo candidate nearest this BPM (from a tap or a
     /// half/double button).
     pub bpm_hint: Option<f32>,
-    /// Beats per bar, default 4.
+    /// Beats per bar. Leave unset to choose between 4 and 3 automatically.
     pub beats_per_bar: Option<usize>,
 }
 
@@ -78,6 +78,11 @@ pub struct Section {
 pub struct Analysis {
     pub version: String,
     pub duration: f32,
+    /// Estimated tuning offset from A440 in cents, already corrected for.
+    pub tuning_cents: f32,
+    /// "4/4" or "3/4" (or "n/4" when `beatsPerBar` was given).
+    pub meter: String,
+    pub beats_per_bar: usize,
     pub tempo: Tempo,
     pub key: Key,
     pub beats: Vec<f32>,
@@ -118,11 +123,11 @@ pub fn analyze(samples: &[f32], sample_rate: u32, opts: &Options) -> Result<Anal
     if (samples.len() as f32) < 4.0 * sample_rate as f32 {
         return Err(Error::TooShort);
     }
-    let bpb = opts.beats_per_bar.unwrap_or(4).clamp(2, 12);
     let mut x = dsp::resample(samples, sample_rate, SR);
     dsp::normalize_peak(&mut x);
     let duration = x.len() as f32 / SR as f32;
     let feat = features::extract(&x);
+    let tuning_cents = feat.tuning_cents;
     let fps = feat.fps;
     let n = feat.n;
     let mut warnings = Vec::new();
@@ -177,7 +182,7 @@ pub fn analyze(samples: &[f32], sample_rate: u32, opts: &Options) -> Result<Anal
         }
     }
     let keys = key::rank(&global);
-    let flats = notes::key_uses_flats(keys[0].tonic, keys[0].minor);
+    let (tonic, minor) = (keys[0].tonic, keys[0].minor);
     let key_name = |k: &key::KeyCandidate| {
         format!(
             "{} {}",
@@ -195,38 +200,68 @@ pub fn analyze(samples: &[f32], sample_rate: u32, opts: &Options) -> Result<Anal
     }
     let key = Key {
         name: key_name(&keys[0]),
-        tonic: notes::name(keys[0].tonic, flats).to_string(),
+        tonic: notes::name(tonic, notes::key_uses_flats(tonic, minor)).to_string(),
         minor: keys[0].minor,
         confidence: key_conf,
         alternative: key_name(&keys[1]),
     };
 
-    // Downbeat phase: chord changes and low-end energy prefer beat one.
+    // Downbeat phase per meter: chord changes and low-end energy prefer beat
+    // one. The meter whose best phase stands out most from its other phases
+    // wins, with 4/4 favoured because it is by far the most common.
     let bass_beats = features::segment_mean(&feat.bass, 1, n, &beat_frames);
     let bass_min = bass_beats.iter().cloned().fold(f32::MAX, f32::min);
     let bass_max = bass_beats.iter().cloned().fold(f32::MIN, f32::max);
-    let mut best_phase = 0;
-    let mut best_score = f32::MIN;
-    for p in 0..bpb.min(nb) {
-        let mut s = 0.0;
-        let mut i = p;
-        while i < nb {
-            if i > 0 && states[i] != states[i - 1] {
-                s += 1.0;
-            }
-            if bass_max > bass_min {
-                s += 0.5 * (bass_beats[i] - bass_min) / (bass_max - bass_min);
-            }
-            i += bpb;
+    let phase_scores = |bpb: usize| -> Vec<f32> {
+        (0..bpb.min(nb))
+            .map(|p| {
+                let mut s = 0.0;
+                let mut i = p;
+                while i < nb {
+                    if i > 0 && states[i] % 12 != states[i - 1] % 12 {
+                        s += 1.0;
+                    }
+                    if bass_max > bass_min {
+                        s += 0.5 * (bass_beats[i] - bass_min) / (bass_max - bass_min);
+                    }
+                    i += bpb;
+                }
+                s
+            })
+            .collect()
+    };
+    let peakiness = |scores: &[f32]| {
+        let best = scores.iter().cloned().fold(f32::MIN, f32::max);
+        let mean = scores.iter().sum::<f32>() / scores.len().max(1) as f32;
+        if mean > 0.0 {
+            (best - mean) / mean
+        } else {
+            0.0
         }
-        if s > best_score {
-            best_score = s;
-            best_phase = p;
+    };
+    let (bpb, meter_auto) = match opts.beats_per_bar {
+        Some(b) => (b.clamp(2, 12), false),
+        None => {
+            let p4 = peakiness(&phase_scores(4));
+            let p3 = peakiness(&phase_scores(3));
+            if p3 > 1.4 * p4 && p3 > 0.15 {
+                (3, true)
+            } else {
+                (4, true)
+            }
         }
-    }
+    };
+    let scores = phase_scores(bpb);
+    let best_phase = scores
+        .iter()
+        .enumerate()
+        .fold((0, f32::MIN), |m, (i, &v)| if v > m.1 { (i, v) } else { m })
+        .0;
+    let meter = format!("{bpb}/4");
+    let _ = meter_auto;
     let label = |s: usize| {
         let c = Chord::from_state(s);
-        notes::chord_label(c.root, c.minor, flats)
+        notes::chord_label(c.root, c.quality, tonic, minor)
     };
     let beat_end = |b: usize| {
         if b + 1 < nb {
@@ -342,28 +377,28 @@ pub fn analyze(samples: &[f32], sample_rate: u32, opts: &Options) -> Result<Anal
         .collect();
 
     // Capo: shapes are spelled in the key the capo makes.
-    let chord_list: Vec<(Option<usize>, bool, f32)> = (0..nb)
+    let chord_list: Vec<(Option<usize>, Quality, f32)> = (0..nb)
         .map(|b| {
             let c = Chord::from_state(states[b]);
-            (c.root, c.minor, beat_end(b) - beat_times[b])
+            (c.root, c.quality, beat_end(b) - beat_times[b])
         })
         .collect();
     let guitar = guitar::recommend(
         &chord_list,
-        |r, m| notes::chord_label(Some(r), m, flats),
-        |r, m| notes::chord_label(Some(r), m, flats),
+        |r, q| notes::chord_label(Some(r), q, tonic, minor),
+        |r, q| notes::chord_label(Some(r), q, tonic, minor),
     );
     let capo = guitar.capo;
-    let shape_flats = notes::key_uses_flats((keys[0].tonic + 12 - capo) % 12, keys[0].minor);
+    let shape_tonic = (tonic + 12 - capo) % 12;
     let guitar = Guitar {
         shapes: guitar
             .shapes
             .keys()
             .map(|k| {
-                let (root, minor) = parse_label(k).unwrap_or((0, false));
+                let (root, quality) = notes::parse_label(k).unwrap_or((0, Quality::Major));
                 (
                     k.clone(),
-                    notes::chord_label(Some((root + 12 - capo) % 12), minor, shape_flats),
+                    notes::chord_label(Some((root + 12 - capo) % 12), quality, shape_tonic, minor),
                 )
             })
             .collect(),
@@ -376,8 +411,17 @@ pub fn analyze(samples: &[f32], sample_rate: u32, opts: &Options) -> Result<Anal
         .take(3)
         .map(|c| (c.bpm * 10.0).round() / 10.0)
         .collect();
-    let _ = NO_CHORD;
     if std::env::var_os("CHORDMAP_DEBUG").is_some() {
+        for b in (0..nb.min(16)).step_by(2) {
+            let row: Vec<String> = (0..12)
+                .map(|k| format!("{:.2}", beat_chroma[b * 12 + k]))
+                .collect();
+            eprintln!(
+                "beat {b} {} chroma C..B {}",
+                label(states[b]),
+                row.join(" ")
+            );
+        }
         eprintln!(
             "novelty per bar: {:?}",
             structure
@@ -399,6 +443,9 @@ pub fn analyze(samples: &[f32], sample_rate: u32, opts: &Options) -> Result<Anal
     Ok(Analysis {
         version: env!("CARGO_PKG_VERSION").to_string(),
         duration,
+        tuning_cents,
+        meter,
+        beats_per_bar: bpb,
         tempo: Tempo {
             bpm: (bpm * 10.0).round() / 10.0,
             confidence,
@@ -415,23 +462,13 @@ pub fn analyze(samples: &[f32], sample_rate: u32, opts: &Options) -> Result<Anal
     })
 }
 
-/// "Bbm" -> (10, true). Accepts sharps and flats.
-pub fn parse_label(label: &str) -> Option<(usize, bool)> {
-    let (name, minor) = match label.strip_suffix('m') {
-        Some(n) => (n, true),
-        None => (label, false),
-    };
-    notes::SHARP
-        .iter()
-        .position(|&x| x == name)
-        .or_else(|| notes::FLAT.iter().position(|&x| x == name))
-        .map(|r| (r, minor))
-}
-
 /// Plain-text chord sheet: sections as headings, four bars per line.
 pub fn chord_sheet(a: &Analysis) -> String {
     let mut out = String::new();
-    out.push_str(&format!("{} BPM, {}\n", a.tempo.bpm, a.key.name));
+    out.push_str(&format!(
+        "{} BPM, {}, {}\n",
+        a.tempo.bpm, a.meter, a.key.name
+    ));
     if a.guitar.capo > 0 {
         let shapes: Vec<String> = a
             .guitar

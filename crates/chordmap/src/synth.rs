@@ -2,6 +2,7 @@
 //! Used by the test suite and the `chordmap synth` command, so nothing
 //! copyrighted is ever needed.
 
+use crate::chords::Quality;
 use crate::dsp::SR;
 
 /// One strummed chord in a progression.
@@ -9,7 +10,7 @@ use crate::dsp::SR;
 pub struct SynthChord {
     /// Pitch class 0..12 (C = 0).
     pub root: usize,
-    pub minor: bool,
+    pub quality: Quality,
     pub beats: usize,
 }
 
@@ -22,6 +23,8 @@ pub struct Timbre {
     pub bass: f32,
     /// Level of the drum clicks on each beat.
     pub click: f32,
+    /// Detune the whole instrument, in cents.
+    pub detune_cents: f32,
 }
 
 impl Default for Timbre {
@@ -30,6 +33,7 @@ impl Default for Timbre {
             rolloff: 1.5,
             bass: 0.6,
             click: 0.5,
+            detune_cents: 0.0,
         }
     }
 }
@@ -68,13 +72,14 @@ pub fn render_progression(
     let mut pos = at;
     let mut beat_index = 0usize;
     for ch in chords {
-        let third = if ch.minor { 3 } else { 4 };
-        let notes = [
-            60 + ch.root as i32,
-            60 + ch.root as i32 + third,
-            60 + ch.root as i32 + 7,
-            72 + ch.root as i32,
-        ];
+        let third = if ch.quality.is_minor() { 3 } else { 4 };
+        let r = 60 + ch.root as i32;
+        let top = match ch.quality {
+            Quality::Major | Quality::Minor => r + 12,
+            Quality::Dom7 | Quality::Min7 => r + 10,
+            Quality::Maj7 => r + 11,
+        };
+        let notes = [r, r + third, r + 7, top];
         for b in 0..ch.beats {
             let start = pos + b * spb;
             let downbeat = beat_index % 4 == 0;
@@ -83,7 +88,7 @@ pub fn render_progression(
                 let env = (-t * 2.5).exp() * (1.0 - (-t * 200.0).exp());
                 let mut s = 0.0f32;
                 for (k, &n) in notes.iter().enumerate() {
-                    let f = midi_hz(n as f32);
+                    let f = midi_hz(n as f32 + timbre.detune_cents / 100.0);
                     let strum = (k as f32 * 0.012 - t).max(0.0);
                     if strum > 0.0 {
                         continue;
@@ -94,7 +99,7 @@ pub fn render_progression(
                     }
                 }
                 s *= 0.12 * env;
-                let bf = midi_hz((48 + ch.root as i32) as f32);
+                let bf = midi_hz((48 + ch.root as i32) as f32 + timbre.detune_cents / 100.0);
                 s += timbre.bass
                     * 0.25
                     * (-t * 1.5).exp()
@@ -140,16 +145,18 @@ pub fn parse_progression(text: &str, beats: usize) -> Result<Vec<SynthChord>, St
     let flat_pc = [1, 3, 6, 8, 10];
     text.split_whitespace()
         .map(|tok| {
-            let (name, minor) = match tok.strip_suffix('m') {
-                Some(n) => (n, true),
-                None => (tok, false),
-            };
+            let (name, quality) =
+                Quality::parse_suffix(tok).ok_or_else(|| format!("unknown chord {tok}"))?;
             let root = names
                 .iter()
                 .position(|&x| x == name)
                 .or_else(|| flats.iter().position(|&x| x == name).map(|i| flat_pc[i]))
                 .ok_or_else(|| format!("unknown chord {tok}"))?;
-            Ok(SynthChord { root, minor, beats })
+            Ok(SynthChord {
+                root,
+                quality,
+                beats,
+            })
         })
         .collect()
 }

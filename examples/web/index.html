@@ -107,7 +107,28 @@
   .shapes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .shape { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 3px 8px; font-size: 14px; }
   .shape b { color: var(--accent); }
+
+  /* Now-playing footer */
+  #nowplaying { position: fixed; left: 0; right: 0; bottom: 0; transform: translateY(110%); transition: transform .2s; background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(12px); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(7, 1fr); align-items: center; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); z-index: 40; box-shadow: 0 -10px 30px -18px rgba(0,0,0,.5); }
+  #nowplaying.on { transform: none; }
+  .np { text-align: center; font-weight: 700; font-size: clamp(16px, 3vw, 22px); color: var(--muted); overflow: hidden; white-space: nowrap; }
+  .np.prev { opacity: .55; }
+  .np.next { color: var(--ink); }
+  .np.now { font-size: clamp(30px, 7vw, 52px); color: var(--accent); position: relative; line-height: 1; }
+  .np.now .count { position: absolute; top: -4px; right: 6px; font-size: 13px; font-weight: 600; color: var(--muted); background: var(--bg); border-radius: 999px; padding: 2px 7px; }
+  .np .dim { opacity: .3; }
+  body.playing { padding-bottom: 96px; }
+
+  @media print {
+    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how { display: none !important; }
+    body { background: #fff; color: #000; font-size: 12px; }
+    .tiles { grid-template-columns: repeat(3, 1fr); }
+    .tile, .bar { box-shadow: none; border-color: #bbb; break-inside: avoid; }
+    .bars { grid-template-columns: repeat(4, 1fr); }
+    .section { break-inside: avoid; }
+  }
 </style>
+<link rel="manifest" href="./manifest.webmanifest">
 </head>
 <body>
 <div class="wrap">
@@ -134,8 +155,8 @@
     <div class="status" id="status" aria-live="polite"></div>
     <div class="how">
       <div><b>How it works</b><span>Classic music analysis, no models to download: onset autocorrelation for tempo, chroma templates for chords, Krumhansl profiles for key, a self-similarity matrix for sections.</span></div>
-      <div><b>What it gets right</b><span>Steady-tempo pop, rock, folk and worship songs with major and minor chords. Around three in four chords on a typical mix.</span></div>
-      <div><b>What it gets wrong</b><span>Sevenths, inversions and jazz voicings come back as plain triads. Rubato and tempo changes confuse the beat grid. Half or double tempo happens; the buttons fix it.</span></div>
+      <div><b>What it gets right</b><span>Steady-tempo pop, rock, folk and worship songs in 4/4 or 3/4, with major, minor and seventh chords. Around three in four chords on a typical mix. Recordings tuned away from A440 are corrected.</span></div>
+      <div><b>What it gets wrong</b><span>Suspended, diminished and slash chords come back as the nearest triad or seventh. Rubato and tempo changes confuse the beat grid. Half or double tempo happens; the buttons fix it.</span></div>
     </div>
   </section>
 
@@ -178,6 +199,13 @@
         <label class="field">Transpose
           <select id="transpose"></select>
         </label>
+        <span class="field">Spell
+          <span class="seg" id="spelling">
+            <button type="button" data-v="auto" class="on">By key</button>
+            <button type="button" data-v="flat">Flats</button>
+            <button type="button" data-v="sharp">Sharps</button>
+          </span>
+        </span>
         <span class="field">Show
           <span class="seg" id="show">
             <button type="button" data-v="shapes" class="on">Shapes to play</button>
@@ -196,15 +224,17 @@
       <button class="btn" id="copy" type="button">Copy chord sheet</button>
       <button class="btn ghost" id="dl-sheet" type="button">Download .txt</button>
       <button class="btn ghost" id="dl-json" type="button">Download JSON</button>
+      <button class="btn ghost" id="print" type="button">Print</button>
     </div>
     <div class="tip">Free, no ads, no accounts. If it saved you a subscription, a tip is welcome: <a href="https://venmo.com/u/Keith-Adler-1" target="_blank" rel="noopener">Venmo @Keith-Adler-1</a></div>
   </section>
 
   <footer>
     <p><b>chordmap</b> is open source (MIT). The audio is decoded and analyzed on this device and is never uploaded. There is no analytics, no account and no server.</p>
-    <p>Chords are major and minor triads only. Section names like "chorus" are guesses from repetition and loudness. Check the chart against your ears.</p>
+    <p>Chords are major, minor and seventh chords. Section names like "chorus" are guesses from repetition and loudness. Check the chart against your ears. Space plays and pauses.</p>
   </footer>
 </div>
+<div id="nowplaying" aria-live="off"></div>
 <input type="file" id="picker" accept="audio/*,.mp3,.m4a,.wav,.flac,.ogg,.aac,.aiff" class="sr" aria-hidden="true">
 <script type="module" src="./app.js?v=dev"></script>
 </body>

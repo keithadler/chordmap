@@ -1,8 +1,8 @@
 name: Deploy web app to GitHub Pages
 
+# Runs by hand until the repository is public and Pages is switched on;
+# then add `push: branches: [main]` back under `on`.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -31,8 +31,9 @@ jobs:
       - name: Assemble site
         run: |
           mkdir -p site/pkg
-          cp examples/web/index.html examples/web/app.js examples/web/worker.js site/
+          cp examples/web/index.html examples/web/app.js examples/web/worker.js examples/web/sw.js examples/web/manifest.webmanifest site/
           sed -i "s/?v=dev/?v=${GITHUB_SHA::8}/g" site/index.html site/app.js site/worker.js
+          sed -i "s/__VERSION__/${GITHUB_SHA::8}/g" site/sw.js
           cp pkg/chordmap.js pkg/chordmap_bg.wasm site/pkg/
           touch site/.nojekyll
       - uses: actions/upload-pages-artifact@v3

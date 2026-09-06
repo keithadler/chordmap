@@ -2,7 +2,9 @@
 // posts back the analysis JSON. Nothing here touches the network.
 import init, { analyze, chordSheet } from "./pkg/chordmap.js?v=dev";
 
-let ready = init();
+// The wasm URL carries the build stamp too, so a new deploy is never served
+// a stale binary from the browser or the CDN cache.
+let ready = init({ module_or_path: new URL("./pkg/chordmap_bg.wasm?v=dev", import.meta.url) });
 
 self.onmessage = async (e) => {
   const { id, samples, sampleRate, options } = e.data;

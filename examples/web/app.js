@@ -9,8 +9,13 @@ const COLORS = ["--sA", "--sB", "--sC", "--sD", "--sE", "--sF", "--sG", "--sH"];
 const state = {
   file: null, samples: null, sampleRate: 0, url: null,
   analysis: null, sheet: "", bpmHint: null,
-  capo: 0, transpose: 0, show: "shapes", taps: [],
+  capo: 0, transpose: 0, show: "shapes", spelling: "auto", taps: [],
 };
+
+// ---------- offline (the app shell is cached after the first visit)
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("./sw.js").catch(() => {});
+}
 
 // ---------- theme
 $("theme").addEventListener("click", () => {
@@ -114,28 +119,41 @@ async function analyze() {
 
 // ---------- helpers
 function fmtTime(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+const SUFFIXES = ["maj7", "m7", "7", "m", ""];
 function parseLabel(l) {
   if (l === "N") return null;
-  const minor = l.endsWith("m");
-  const name = minor ? l.slice(0, -1) : l;
-  let pc = SHARP.indexOf(name); if (pc < 0) pc = FLAT.indexOf(name);
-  return pc < 0 ? null : { pc, minor };
+  for (const suf of SUFFIXES) {
+    if (!l.endsWith(suf)) continue;
+    const name = suf ? l.slice(0, -suf.length) : l;
+    let pc = SHARP.indexOf(name); if (pc < 0) pc = FLAT.indexOf(name);
+    if (pc >= 0) return { pc, minor: suf === "m" || suf === "m7", suffix: suf };
+  }
+  return null;
 }
 function keyUsesFlats(tonicPc, minor) { const maj = minor ? (tonicPc + 3) % 12 : tonicPc; return [5, 10, 3, 8, 1, 6].includes(maj); }
-function shift() { return state.show === "shapes" ? state.transpose - state.capo : state.transpose; }
-function spellFlats() {
-  const a = state.analysis; const k = parseLabel(a.key.tonic + (a.key.minor ? "m" : ""));
-  return keyUsesFlats(((k ? k.pc : 0) + shift() + 120) % 12, a.key.minor);
+// Diatonic roots as the key writes them, chromatic roots as flats, except the raised fourth.
+function spell(pc, tonicPc, minor) {
+  if (state.spelling === "flat") return FLAT[pc];
+  if (state.spelling === "sharp") return SHARP[pc];
+  if (keyUsesFlats(tonicPc, minor)) return FLAT[pc];
+  const maj = minor ? (tonicPc + 3) % 12 : tonicPc;
+  const diatonic = [0, 2, 4, 5, 7, 9, 11].some((d) => (maj + d) % 12 === pc);
+  const raisedSeventh = minor && pc === (tonicPc + 11) % 12;
+  return diatonic || raisedSeventh || pc === (maj + 6) % 12 ? SHARP[pc] : FLAT[pc];
 }
+function shift() { return state.show === "shapes" ? state.transpose - state.capo : state.transpose; }
+function shownTonicBase() { const a = state.analysis; const k = parseLabel(a.key.tonic + (a.key.minor ? "m" : "")); return k ? k.pc : 0; }
+function shownTonic() { return (shownTonicBase() + shift() + 120) % 12; }
 function display(label) {
   const c = parseLabel(label); if (!c) return "N.C.";
   const pc = (c.pc + shift() + 120) % 12;
-  return (spellFlats() ? FLAT : SHARP)[pc] + (c.minor ? "m" : "");
+  return spell(pc, shownTonic(), state.analysis.key.minor) + c.suffix;
 }
 function keyName() {
   const a = state.analysis; const k = parseLabel(a.key.tonic + (a.key.minor ? "m" : ""));
   const pc = ((k ? k.pc : 0) + state.transpose + 120) % 12;
-  return (keyUsesFlats(pc, a.key.minor) ? FLAT : SHARP)[pc] + (a.key.minor ? " minor" : " major");
+  const name = state.spelling === "flat" ? FLAT[pc] : state.spelling === "sharp" ? SHARP[pc] : (keyUsesFlats(pc, a.key.minor) ? FLAT : SHARP)[pc];
+  return name + (a.key.minor ? " minor" : " major");
 }
 
 // ---------- render
@@ -143,7 +161,8 @@ function render() {
   const a = state.analysis;
   $("bpm").textContent = a.tempo.bpm.toFixed(1);
   const alts = a.tempo.alternatives.map((b) => b.toFixed(0)).join(", ");
-  $("bpm-sub").textContent = (a.tempo.confidence > 0.5 ? "Confident." : "Could be half or double.") + (alts ? " Also plausible: " + alts + "." : "");
+  const tuning = Math.abs(a.tuningCents) >= 7.5 ? " Tuned " + (a.tuningCents > 0 ? "+" : "") + a.tuningCents.toFixed(0) + " cents from A440, corrected." : "";
+  $("bpm-sub").textContent = a.meter + " time. " + (a.tempo.confidence > 0.5 ? "Confident." : "Could be half or double.") + (alts ? " Also plausible: " + alts + "." : "") + tuning;
   $("reset-bpm").hidden = !state.bpmHint;
   $("key").textContent = keyName();
   $("key-sub").textContent = (a.key.confidence < 0.05 ? "Close call, could also be " : "Runner-up: ") + a.key.alternative + ".";
@@ -155,9 +174,13 @@ function render() {
     ? "Turns " + fmtTime(none.hardSeconds || 0) + " of barre chords into " + fmtTime(opt.hardSeconds || 0) + "."
     : "The open shapes already fit this song.";
   const shapes = $("shapes"); shapes.innerHTML = "";
+  const respell = (label, shiftBy, tonic) => { const c = parseLabel(label); return c ? spell((c.pc + shiftBy + 120) % 12, tonic, a.key.minor) + c.suffix : label; };
+  const soundingTonic = (shownTonicBase() + state.transpose + 120) % 12;
+  const shapeTonic = (soundingTonic - g.capo + 120) % 12;
   Object.entries(g.shapes).forEach(([sounding, shape]) => {
     const el = document.createElement("span"); el.className = "shape";
-    el.innerHTML = g.capo ? `${esc(sounding)} → <b>${esc(shape)}</b>` : `<b>${esc(sounding)}</b>`;
+    const s1 = respell(sounding, state.transpose, soundingTonic), s2 = respell(shape, state.transpose, shapeTonic);
+    el.innerHTML = g.capo ? `${esc(s1)} → <b>${esc(s2)}</b>` : `<b>${esc(s1)}</b>`;
     shapes.appendChild(el);
   });
   const cs = $("capo-select"); cs.innerHTML = "";
@@ -234,13 +257,46 @@ function tick() {
   let now = null;
   for (const b of bars) { if (t >= +b.dataset.start && t < +b.dataset.end) { now = b; break; } }
   if (now !== lastBar) { if (lastBar) lastBar.classList.remove("now"); if (now) now.classList.add("now"); lastBar = now; }
+  renderNowPlaying(t);
 }
+
+// Persistent footer while playing: the three chords just played, the one
+// sounding now with a countdown, and the next three.
+let lastNowKey = "";
+function renderNowPlaying(t) {
+  const a = state.analysis, foot = $("nowplaying");
+  const playing = !$("player").paused;
+  foot.classList.toggle("on", playing);
+  if (!playing) { lastNowKey = ""; return; }
+  const spans = a.chords;
+  let i = spans.findIndex((c) => t >= c.start && t < c.end);
+  if (i < 0) i = t < spans[0].start ? -1 : spans.length - 1;
+  const cur = spans[i];
+  const beatsLeft = cur ? Math.max(0, Math.ceil((cur.end - t) / (60 / a.tempo.bpm))) : 0;
+  const key = i + ":" + beatsLeft + ":" + shift();
+  if (key === lastNowKey) return;
+  lastNowKey = key;
+  const cell = (c, cls) => `<div class="np ${cls}">${c ? esc(display(c.label)) : "<span class='dim'>·</span>"}</div>`;
+  let html = "";
+  for (let k = 3; k >= 1; k--) html += cell(spans[i - k], "prev");
+  html += `<div class="np now">${cur ? esc(display(cur.label)) : "…"}<span class="count">${cur ? beatsLeft : ""}</span></div>`;
+  for (let k = 1; k <= 3; k++) html += cell(spans[i + k], "next");
+  foot.innerHTML = html;
+}
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input, select, textarea, button")) return;
+  const p = $("player");
+  if (e.code === "Space" && state.analysis) { e.preventDefault(); p.paused ? p.play() : p.pause(); }
+});
+$("player").addEventListener("pause", () => renderNowPlaying($("player").currentTime));
+$("player").addEventListener("play", () => renderNowPlaying($("player").currentTime));
 $("player").addEventListener("timeupdate", tick);
 (function raf() { if (!$("player").paused) tick(); requestAnimationFrame(raf); })();
 
 // ---------- controls
 $("capo-select").addEventListener("change", (e) => { state.capo = +e.target.value; renderChart(); });
 $("transpose").addEventListener("change", (e) => { state.transpose = +e.target.value; $("key").textContent = keyName(); renderChart(); });
+$("spelling").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; state.spelling = b.dataset.v; [...$("spelling").children].forEach((x) => x.classList.toggle("on", x === b)); render(); });
 $("show").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; state.show = b.dataset.v; [...$("show").children].forEach((x) => x.classList.toggle("on", x === b)); renderChart(); });
 $("half").addEventListener("click", () => { state.bpmHint = state.analysis.tempo.bpm / 2; analyze(); });
 $("double").addEventListener("click", () => { state.bpmHint = state.analysis.tempo.bpm * 2; analyze(); });
@@ -287,4 +343,7 @@ function download(name, text, type) {
 function base() { return (state.file.name.replace(/\.[^.]+$/, "") || "song"); }
 $("copy").addEventListener("click", async () => { try { await navigator.clipboard.writeText(sheetText()); $("copy").textContent = "Copied"; setTimeout(() => ($("copy").textContent = "Copy chord sheet"), 1500); } catch (e) { download(base() + " chords.txt", sheetText(), "text/plain"); } });
 $("dl-sheet").addEventListener("click", () => download(base() + " chords.txt", sheetText(), "text/plain"));
+$("print").addEventListener("click", () => window.print());
+$("player").addEventListener("play", () => document.body.classList.add("playing"));
+$("player").addEventListener("pause", () => document.body.classList.remove("playing"));
 $("dl-json").addEventListener("click", () => download(base() + " chordmap.json", JSON.stringify(state.analysis, null, 2), "application/json"));

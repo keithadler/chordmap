@@ -19,6 +19,8 @@ pub struct Features {
     pub onset: Vec<f32>,
     /// `n` low-band levels in dB (kick and bass), for downbeats.
     pub bass: Vec<f32>,
+    /// Estimated deviation from A440 in cents; the semitone grid was shifted by it.
+    pub tuning_cents: f32,
 }
 
 fn hz_to_mel(f: f32) -> f32 {
@@ -56,40 +58,101 @@ fn mel_filters() -> Vec<Vec<(usize, f32)>> {
         .collect()
 }
 
-/// Each bin is shared between its two nearest semitones.
-fn pitch_weights() -> Vec<(usize, usize, f32)> {
-    let mut v = Vec::new();
-    for b in 1..Stft::BINS {
-        let f = Stft::bin_hz(b);
-        if !(55.0..=2200.0).contains(&f) {
-            continue;
-        }
-        let m = 69.0 + 12.0 * (f / 440.0).log2();
-        let lo = m.floor();
-        for p in [lo, lo + 1.0] {
-            let w = 1.0 - (m - p).abs();
-            let idx = p as i32 - PITCH_MIDI0;
-            if w > 0.0 && idx >= 0 && (idx as usize) < N_PITCH {
-                v.push((b, idx as usize, w));
+/// Histogram of how far spectral peaks sit from the nearest equal-tempered
+/// semitone, over a subset of frames. Returns the modal offset in cents.
+fn estimate_tuning(stft: &mut Stft, x: &[f32], n: usize) -> f32 {
+    let mut hist = [0.0f32; 20]; // 5-cent bins from -50 to +50
+    let mut spec = vec![0.0f32; Stft::BINS];
+    let mut t = 0;
+    while t < n {
+        stft.power(x, t, &mut spec);
+        let max = spec.iter().cloned().fold(0.0f32, f32::max);
+        if max > 1e-6 {
+            for b in 2..Stft::BINS - 2 {
+                let f = Stft::bin_hz(b);
+                if !(80.0..=2000.0).contains(&f) {
+                    continue;
+                }
+                if spec[b] > spec[b - 1] && spec[b] >= spec[b + 1] && spec[b] > 1e-3 * max {
+                    // Parabolic interpolation of the peak frequency.
+                    let (a, c, d) = (
+                        (spec[b - 1] + 1e-12).ln(),
+                        (spec[b] + 1e-12).ln(),
+                        (spec[b + 1] + 1e-12).ln(),
+                    );
+                    let denom = a - 2.0 * c + d;
+                    let off = if denom.abs() > 1e-9 {
+                        0.5 * (a - d) / denom
+                    } else {
+                        0.0
+                    };
+                    let fp = Stft::bin_hz(b)
+                        + off.clamp(-0.5, 0.5) * (SR as f32 / crate::dsp::N_FFT as f32);
+                    let m = 69.0 + 12.0 * (fp / 440.0).log2();
+                    let cents = (m - m.round()) * 100.0;
+                    let idx = (((cents + 50.0) / 5.0).floor() as isize).clamp(0, 19) as usize;
+                    hist[idx] += (1.0 + spec[b] / max).ln();
+                }
             }
         }
+        t += 4;
     }
-    v
+    // Circular smoothing over three bins, then the peak.
+    let sm: Vec<f32> = (0..20)
+        .map(|i| hist[(i + 19) % 20] + hist[i] + hist[(i + 1) % 20])
+        .collect();
+    let best = sm
+        .iter()
+        .enumerate()
+        .fold((0, 0.0f32), |m, (i, &v)| if v > m.1 { (i, v) } else { m })
+        .0;
+    let cents = best as f32 * 5.0 - 50.0 + 2.5;
+    if cents.abs() < 7.5 {
+        0.0
+    } else {
+        cents
+    }
 }
 
 pub fn extract(x: &[f32]) -> Features {
     let n = Stft::n_frames(x.len());
     let mut stft = Stft::new();
     let mels = mel_filters();
-    let pw = pitch_weights();
+    let tuning_cents = estimate_tuning(&mut stft, x, n);
     let mut spec = vec![0.0f32; Stft::BINS];
     let mut pitch = vec![0.0f32; n * N_PITCH];
     let mut mel = vec![0.0f32; n * N_MELS];
     let mut global_max = f32::MIN;
     for t in 0..n {
         stft.power(x, t, &mut spec);
-        for &(b, p, w) in &pw {
-            pitch[t * N_PITCH + p] += spec[b] * w;
+        // Only spectral peaks feed the pitch grid. Below middle C the window's
+        // main lobe is wider than a semitone, so summing every bin would smear
+        // each bass note into its neighbours; a peak has one frequency.
+        for b in 2..Stft::BINS - 2 {
+            if !(spec[b] > spec[b - 1] && spec[b] >= spec[b + 1]) {
+                continue;
+            }
+            let f = Stft::bin_hz(b);
+            if !(55.0..=2200.0).contains(&f) {
+                continue;
+            }
+            let (a, c, d) = (
+                (spec[b - 1] + 1e-12).ln(),
+                (spec[b] + 1e-12).ln(),
+                (spec[b + 1] + 1e-12).ln(),
+            );
+            let denom = a - 2.0 * c + d;
+            let off = if denom.abs() > 1e-9 {
+                0.5 * (a - d) / denom
+            } else {
+                0.0
+            };
+            let fp = f + off.clamp(-0.5, 0.5) * (SR as f32 / crate::dsp::N_FFT as f32);
+            let m = 69.0 + 12.0 * (fp / 440.0).log2() - tuning_cents / 100.0;
+            let idx = m.round() as i32 - PITCH_MIDI0;
+            if idx >= 0 && (idx as usize) < N_PITCH {
+                pitch[t * N_PITCH + idx as usize] += spec[b - 1] + spec[b] + spec[b + 1];
+            }
         }
         for (m, filt) in mels.iter().enumerate() {
             let e: f32 = filt.iter().map(|&(b, w)| spec[b] * w).sum();
@@ -130,6 +193,7 @@ pub fn extract(x: &[f32]) -> Features {
         mel,
         onset,
         bass,
+        tuning_cents,
     }
 }
 

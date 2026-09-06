@@ -10,8 +10,9 @@ with the right amount of trust.
   tempo in the app, `--bpm` on the CLI) picks between them.
 - The beat tracker assumes a steady tempo. Rubato, ritardandos and tempo
   changes mid-song produce a drifting grid, and the chord chart drifts with it.
-- 4/4 is assumed unless `beatsPerBar` says otherwise. There is no meter
-  detection.
+- The meter is chosen between 4/4 and 3/4 by which one lines chord changes
+  and bass hits up on beat one. 6/8 usually reads as 3/4 at double tempo,
+  5/4 and 7/8 come out wrong. `beatsPerBar` overrides the guess.
 - Onsets are detected from spectral flux, which is late by about a quarter
   of the analysis window; beat times are corrected for that but can still sit
   20 to 30 ms off the true attack.
@@ -19,9 +20,17 @@ with the right amount of trust.
   no history yet, so charts frequently start with a pickup bar.
 
 ## Chords
-- Only 24 chords exist: 12 major and 12 minor triads, plus "N" for silence.
-  Dominant sevenths, major sevenths, suspended and diminished chords, power
-  chords and slash chords are mapped to the nearest triad.
+- 60 chords exist: major, minor, dominant seventh, major seventh and minor
+  seventh on each root, plus "N" for silence. Suspended, diminished,
+  augmented, sixth and ninth chords, power chords and slash chords are mapped
+  to the nearest of those. A seventh is only reported when it beats the
+  plain triad by a margin, so light sevenths are missed on purpose.
+- Chroma is built from spectral peaks with harmonic support and folded over
+  C2 to B5 only, which keeps a triad's own harmonics from reading as a major
+  seventh. Chord tones above B5 (high voicings, piccolo lines) are not heard.
+- Tuning is estimated from where spectral peaks sit relative to the
+  equal-tempered grid and corrected when the offset is 7.5 cents or more.
+  Songs that drift in tuning get a single average correction.
 - Chroma comes from the full mix. Drums are attenuated by a median filter in
   time, not removed; bass lines and melodies still colour the chroma. Expect
   roughly three of four beats right on pop, rock, folk and worship music,
