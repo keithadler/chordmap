@@ -587,8 +587,13 @@ $("rechart").addEventListener("click", async () => {
   const keep = state.analysis;
   await analyze();
   state.chartSource = null;
-  state.analysis.warnings.unshift("Charted from the separated " + (drums ? "instrumental without drums" : "instrumental") + ". Previous chart: " + keep.key.name + ", " + keep.tempo.bpm + " BPM.");
+  // Sections come from the full mix (drums and vocals shape them); only the
+  // chords, key and tempo are taken from the stems.
+  const bars = state.analysis.bars;
+  state.analysis.sections = keep.sections.map((s) => { let i = bars.findIndex((b) => b.start >= s.start - 0.01); if (i < 0) i = bars.length - 1; return { ...s, bar: i }; });
+  state.analysis.warnings.unshift("Chords and key charted from the separated " + (drums ? "instrumental without drums" : "instrumental") + "; sections kept from the full mix. Before: " + keep.key.name + ", " + keep.tempo.bpm + " BPM.");
   render();
+  touched();
 });
 
 // ---------- install as an app
