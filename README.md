@@ -41,7 +41,11 @@ println!("{}", chordmap::chord_sheet(&a));
 
 The same engine as a Mac app that hears what the Mac is playing, in any app, and charts it live: the chord now, the key, the tempo, the bars by section, the capo, and a history of every listen with its chord sheet.
 
+![Chordmap for Mac, mid-song: Eb major, 96 bpm, capo 3, the bars by section](mac/docs/screenshots/live.png)
+
 **[Download Chordmap-for-Mac-1.0.0.dmg](https://github.com/keithadler/chordmap/releases/download/mac-v1.0.0/Chordmap-for-Mac-1.0.0.dmg)** (macOS 14 or later, Apple Silicon). Open the DMG, drag the app to Applications, open it; the first time, right-click the app, choose Open, then Open again. It asks once for System Audio Recording, which is how macOS describes hearing what the Mac plays, and records nothing. Details, limits and the command line in [mac/README.md](mac/README.md).
+
+![A kept listen with its chart and chord sheet](mac/docs/screenshots/listen.png)
 
 ## How it works
 

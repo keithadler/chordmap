@@ -18,6 +18,8 @@ Press the button, play a song. Every two seconds chordmap re-hears the last 24 s
 
 An input device works too: a guitar into an interface, or a microphone in front of a record player.
 
+![A kept listen with its chart and chord sheet](docs/screenshots/listen.png)
+
 ## Honest limits
 
 - It does not know the song's name. No database; it only hears.
