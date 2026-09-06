@@ -497,8 +497,10 @@ function renderMixer() {
   }
   const missing = ["vocals", "drums", "bass", "other"].filter((n) => !have.includes(n));
   $("separate").hidden = !missing.length;
-  $("separate").textContent = have.length ? "Separate more stems (" + missing.join(", ") + ")" : "Separate vocals with AI";
-  $("separate-note").textContent = have.length ? "" : "Downloads the KUIELab MDX-Net models (about " + MODELS.vocals.mb + " MB per stem, cached after) and the onnxruntime engine (14 MB). A four-minute song takes a few minutes on CPU" + (supportsWebGPU() ? ", less with WebGPU." : ".");
+  $("separate").textContent = have.length ? "Separate more stems on this device (" + missing.join(", ") + ")" : "Separate vocals with on-device AI";
+  $("separate-note").textContent = have.length
+    ? "The AI runs on this device. Your audio is never uploaded."
+    : "The AI runs on this device, in your browser. Nothing is uploaded: the only download is the model itself (KUIELab MDX-Net, about " + MODELS.vocals.mb + " MB per stem, cached after) and the onnxruntime engine (14 MB). A four-minute song takes a few minutes on CPU" + (supportsWebGPU() ? ", well under a minute with WebGPU on this machine." : ".");
   $("rechart").hidden = !have.includes("vocals");
 }
 let mixTimer = null;
@@ -564,13 +566,13 @@ $("separate").addEventListener("click", async () => {
     const t0 = performance.now();
     const res = await separate(l, r, want, call, (ev) => {
       const pct = Math.round(ev.p * 100);
-      setMixStatus((ev.stage === "download" ? "Downloading " + ev.stem + " model " : "Separating " + ev.stem + " ") + pct + "%");
+      setMixStatus((ev.stage === "download" ? "Downloading the " + ev.stem + " model " : "Separating " + ev.stem + " on this device ") + pct + "%");
     });
     state.stems = Object.assign(state.stems || {}, res);
     for (const n of Object.keys(res)) if (state.gains[n] === undefined) state.gains[n] = 1;
     state.source = res.instrumental ? "stems-inst" : "stems-mix";
     renderMixer();
-    setMixStatus("Separated in " + Math.round((performance.now() - t0) / 1000) + " s.");
+    setMixStatus("Separated on this device in " + Math.round((performance.now() - t0) / 1000) + " s. Nothing left your browser.");
     scheduleMix();
   } catch (err) { setMixStatus("Separation failed: " + (err.message || err)); }
   btn.disabled = false;

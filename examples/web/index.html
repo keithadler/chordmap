@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>chordmap: tempo, key, chords and sections from any song, in your browser</title>
-<meta name="description" content="Drop a song and get its BPM, key, chord chart, section map and a capo suggestion. Free, open source, and the audio never leaves your browser.">
+<meta name="description" content="Drop a song and get its BPM, key, chord chart, sections, capo, and AI stems that are separated on your own device. Free, open source, and the audio never leaves your browser.">
 <meta name="theme-color" content="#7c3aed">
 <link rel="icon" href="./icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
@@ -272,8 +272,8 @@
       </div>
     </div>
     <div class="how">
-      <div><b>How it works</b><span>Classic music analysis, no models to download: onset autocorrelation for tempo, chroma templates for chords, Krumhansl profiles for key, a self-similarity matrix for sections.</span></div>
-      <div><b>What it gets right</b><span>Steady-tempo pop, rock, folk and worship songs in 4/4 or 3/4, with major, minor and seventh chords. Around three in four chords on a typical mix. Recordings tuned away from A440 are corrected.</span></div>
+      <div><b>How it works</b><span>Classic music analysis for the chart, no models needed. Stem separation uses AI that runs on your own device in the browser, with WebGPU when you have it. The models download in; your audio never goes out.</span></div>
+      <div><b>What it gets right</b><span>Steady-tempo pop, rock, folk, worship and hip hop in 4/4 or 3/4, with major, minor and seventh chords. Around three in four chords on a typical mix, better after charting from the stems. Recordings tuned away from A440 are corrected.</span></div>
       <div><b>What it gets wrong</b><span>Suspended, diminished and slash chords come back as the nearest triad or seventh. Rubato and tempo changes confuse the beat grid. Half or double tempo happens; the buttons fix it. Edit mode fixes the rest.</span></div>
     </div>
   </section>
@@ -395,7 +395,7 @@
   </section>
 
   <footer>
-    <p><b>chordmap</b> is open source (MIT). The audio is decoded and analyzed on this device and is never uploaded. There is no analytics, no account and no server.</p>
+    <p><b>chordmap</b> is open source (MIT). The audio is decoded, analyzed and separated on this device and is never uploaded. The AI stem separation is local too: the models download into your browser and run there. There is no analytics, no account and no server.</p>
     <p>Chords are major, minor and seventh chords. Section names like "chorus" are guesses from repetition and loudness. Check the chart against your ears. Space plays and pauses, arrows step through bars, Esc stops a loop. Edit chart lets you fix any chord or section name; corrections are kept in this browser and go into every download and share link.</p>
   </footer>
 </div>
