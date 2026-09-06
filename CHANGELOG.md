@@ -34,6 +34,8 @@
   tempo, and "chart again from the stems".
 - Genre switch (band, hip hop, dance): tempo prior at 120, 90 or 128 BPM,
   hook and drop section names, sparse-harmony detection with a warning.
+- Progress bar for AI stems: model download, separation percent, time
+  left, stem steps, all marked as on this device.
 - Landing page rewritten around free charts, on-device AI stems and
   play-along from your own music, with six feature cards.
 - Every place the AI appears says it runs on the device and uploads nothing.

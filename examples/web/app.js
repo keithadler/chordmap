@@ -564,19 +564,41 @@ $("separate").addEventListener("click", async () => {
       state.stereo = [l, r]; state.sampleRate = MODEL_RATE; state.split = null;
     }
     const t0 = performance.now();
+    showProgress(want);
+    let runStart = 0;
     const res = await separate(l, r, want, call, (ev) => {
       const pct = Math.round(ev.p * 100);
-      setMixStatus((ev.stage === "download" ? "Downloading the " + ev.stem + " model " : "Separating " + ev.stem + " on this device ") + pct + "%");
+      if (ev.stage === "run" && !runStart) runStart = performance.now();
+      const eta = ev.stage === "run" && ev.p > 0.05 ? Math.round((performance.now() - runStart) / ev.p * (1 - ev.p) / 1000) : null;
+      updateProgress(want, ev, pct, eta);
+      setMixStatus((ev.stage === "download" ? "Downloading the " + ev.stem + " model " : "Separating " + ev.stem + " on this device ") + pct + "%" + (eta !== null ? ", about " + fmtTime(eta) + " left" : ""));
     });
+    hideProgress();
     state.stems = Object.assign(state.stems || {}, res);
     for (const n of Object.keys(res)) if (state.gains[n] === undefined) state.gains[n] = 1;
     state.source = res.instrumental ? "stems-inst" : "stems-mix";
     renderMixer();
     setMixStatus("Separated on this device in " + Math.round((performance.now() - t0) / 1000) + " s. Nothing left your browser.");
     scheduleMix();
-  } catch (err) { setMixStatus("Separation failed: " + (err.message || err)); }
+  } catch (err) { hideProgress(); setMixStatus("Separation failed: " + (err.message || err)); }
   btn.disabled = false;
 });
+function showProgress(stems) {
+  $("sep-progress").hidden = false; $("sep-bar").style.width = "0%"; $("sep-pct").textContent = "0%";
+  $("sep-title").textContent = "Separating on this device"; $("sep-detail").textContent = "nothing is uploaded";
+  $("sep-steps").innerHTML = stems.map((n) => `<span data-stem="${esc(n)}">${esc(n)}</span>`).join("");
+}
+function updateProgress(stems, ev, pct, eta) {
+  // Overall bar: each stem is one slice, download is the first fifth of its slice.
+  const i = stems.indexOf(ev.stem), slice = 1 / stems.length;
+  const within = ev.stage === "download" ? ev.p * 0.2 : 0.2 + ev.p * 0.8;
+  const overall = Math.round(((i + within) * slice) * 100);
+  $("sep-bar").style.width = overall + "%"; $("sep-pct").textContent = overall + "%";
+  $("sep-title").textContent = ev.stage === "download" ? "Downloading the " + ev.stem + " model" : "Separating " + ev.stem;
+  $("sep-detail").textContent = (ev.stage === "download" ? pct + "% of the file" : pct + "% of the song") + (eta !== null ? " · about " + fmtTime(eta) + " left" : "") + " · on this device";
+  $("sep-steps").querySelectorAll("span").forEach((el, k) => { el.classList.toggle("done", k < i); el.classList.toggle("now", k === i); });
+}
+function hideProgress() { $("sep-progress").hidden = true; }
 
 // Chart again from the stems: drums out, vocals out, so the chroma is the band.
 $("rechart").addEventListener("click", async () => {

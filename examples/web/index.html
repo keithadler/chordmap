@@ -183,6 +183,19 @@
 
   .mixer { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
   .mixer .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .progress { margin-top: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .progress-head { display: flex; gap: 10px; align-items: baseline; font-size: 14px; }
+  .progress-head b { font-size: 15px; }
+  .progress-head span { color: var(--muted); }
+  .progress-head #sep-pct { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ink); }
+  .progress-track { height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 18%, transparent); overflow: hidden; margin-top: 8px; }
+  .progress-bar { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .25s; position: relative; }
+  .progress-bar::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); animation: shimmer 1.2s linear infinite; }
+  @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+  .progress-steps { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .progress-steps span { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .progress-steps span.done { border-color: var(--ok); color: var(--ok); }
+  .progress-steps span.now { border-color: var(--accent); color: var(--accent); }
   .faders { display: grid; gap: 6px; margin-top: 10px; }
   .fader { display: grid; grid-template-columns: 70px 1fr auto; align-items: center; gap: 10px; font-size: 14px; text-transform: capitalize; }
   .fader input[type=range] { accent-color: var(--accent); }
@@ -381,6 +394,11 @@
           <button class="btn ghost small practice" id="rechart" type="button" hidden>Chart again from the stems</button>
         </div>
         <div class="faders" id="faders" hidden></div>
+        <div class="progress" id="sep-progress" hidden>
+          <div class="progress-head"><b id="sep-title">Separating</b><span id="sep-detail"></span><span id="sep-pct">0%</span></div>
+          <div class="progress-track"><div class="progress-bar" id="sep-bar"></div></div>
+          <div class="progress-steps" id="sep-steps"></div>
+        </div>
         <div class="hint" id="separate-note"></div>
         <div class="hint" id="mix-status" aria-live="polite"></div>
       </div>
