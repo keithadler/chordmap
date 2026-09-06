@@ -103,6 +103,14 @@
   .features i { font-style: normal; font-size: 26px; width: 44px; height: 44px; border-radius: 12px; background: var(--accent-soft); display: grid; place-items: center; margin-bottom: 4px; }
   .features b { font-size: 17px; letter-spacing: -.01em; }
   .features span { color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .mac { margin-top: 36px; text-align: left; background: linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 24px; box-shadow: var(--shadow); }
+  .mac .cap { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); font-weight: 700; }
+  .mac h2 { margin: 4px 0 8px; font-size: 26px; letter-spacing: -.02em; }
+  .mac p { color: var(--muted); font-size: 16px; max-width: none; margin: 0 0 12px; }
+  .mac a.dl { display: inline-block; background: var(--accent); color: var(--accent-ink); padding: 10px 16px; border-radius: 10px; text-decoration: none; font-weight: 700; margin-right: 10px; }
+  .mac-note { font-size: 14px; color: var(--muted); }
+  .mac-shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 16px; }
+  .mac-shots img { width: 100%; border-radius: 12px; border: 1px solid var(--line); box-shadow: var(--shadow); }
   .how { margin-top: 28px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
   .how div { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
   .how b { display: block; margin-bottom: 4px; } .how span { color: var(--muted); font-size: 14px; }
@@ -240,7 +248,7 @@
   @media (max-width: 600px) { #nowplaying { grid-template-columns: repeat(7, 1fr); } .ring { display: none; } }
 
   @media print {
-    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how, .loopbtn, #edit, #nudge, .editor, .library, .sky, .sample, .vizrow, .viz, .live, .features, .pills { display: none !important; }
+    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how, .mac, .loopbtn, #edit, #nudge, .editor, .library, .sky, .sample, .vizrow, .viz, .live, .features, .pills { display: none !important; }
     body { background: #fff; color: #000; font-size: 12px; }
     .tiles { grid-template-columns: repeat(3, 1fr); }
     .tile, .bar { box-shadow: none; border-color: #bbb; break-inside: avoid; }
@@ -258,6 +266,7 @@
       chordmap
     </a>
     <nav>
+      <a href="#mac">Mac app</a>
       <a href="https://github.com/keithadler/chordmap" target="_blank" rel="noopener">Source</a>
       <a href="https://github.com/keithadler/chordmap#limits" target="_blank" rel="noopener">Limits</a>
       <button class="theme" id="install" type="button" hidden>⤓ Install app</button>
@@ -306,6 +315,16 @@
       <div><b>How it works</b><span>Classic music analysis for the chart, written in Rust and run as WebAssembly. Stem separation is the MIT KUIELab MDX-Net model running in your browser, on the GPU when you have one. Nothing is sent anywhere.</span></div>
       <div><b>What it gets right</b><span>Steady-tempo pop, rock, folk, worship and hip hop in 4/4 or 3/4, with major, minor and seventh chords. Around three in four chords on a typical mix, better after charting from the stems. Vocals separate cleanly.</span></div>
       <div><b>What it gets wrong</b><span>Suspended, diminished and slash chords come back as the nearest chord. Rubato confuses the beat grid. Half or double tempo happens; the buttons fix it. Stems from dense mixes have some bleed. Edit mode fixes the rest.</span></div>
+    </div>
+    <div class="mac" id="mac">
+      <span class="cap">Also a Mac app</span>
+      <h2>Chordmap for Mac</h2>
+      <p>The same engine, listening to whatever the Mac is playing, in any app, and charting it live: the chord now, the key, the tempo, the bars by section, and where the capo goes so the open shapes play it. Stop, and the whole listen is kept with its chord sheet. A guitar into an audio interface works too. It hears; it never records.</p>
+      <p><a class="dl" href="https://github.com/keithadler/chordmap/releases/download/mac-v1.0.0/Chordmap-for-Mac-1.0.0.dmg">Download for macOS</a> <span class="mac-note">Free, open source. macOS 14 or later, Apple Silicon. <a href="https://github.com/keithadler/chordmap/tree/main/mac" target="_blank" rel="noopener">Source and Help</a></span></p>
+      <div class="mac-shots">
+        <img src="./mac/live.png" alt="Chordmap for Mac listening to a song: G now, Eb major, 96 bpm, capo 3 with shapes, the bars by section" loading="lazy">
+        <img src="./mac/listen.png" alt="A kept listen in Chordmap for Mac with its chart and chord sheet" loading="lazy">
+      </div>
     </div>
   </section>
 
