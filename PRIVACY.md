@@ -9,7 +9,11 @@ chordmap runs entirely on your device.
   your corrections and the file name) in its own storage on this device.
   Audio is never stored. Each chart has a forget button.
 - The CLI reads the file you name and writes to standard output.
-- The page loads no third-party scripts or fonts.
+- The page loads no third-party scripts or fonts on its own. When you click
+  "Separate vocals with AI" it fetches the onnxruntime engine (bundled with
+  the site) and the separation models from keithadler.github.io, the same
+  publisher, and caches them in your browser. Your audio still never leaves
+  the device; only the model files come in.
 - "Share chart" builds a link with the chart (tempo, key, chords, sections,
   file name) compressed into the URL itself. The audio is not in it and
   nothing is stored anywhere; whoever gets the link gets only the chart.

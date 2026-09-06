@@ -226,3 +226,41 @@ fn rejects_short_audio() {
     assert!(analyze(&[0.0; 1000], SR, &Options::default()).is_err());
     assert!(analyze(&[], SR, &Options::default()).is_err());
 }
+
+#[test]
+fn hip_hop_prior_picks_the_slow_tempo_and_a_beat_reads_as_sparse() {
+    // A bare 88 BPM click: the band prior likes 176, the hip hop prior 88.
+    let x = synth::click_track(88.0, 30.0);
+    let band = analyze(&x, SR, &Options::default()).unwrap();
+    let hip = analyze(
+        &x,
+        SR,
+        &Options {
+            genre: Some("hiphop".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(
+        octave_close(hip.tempo.bpm, 88.0),
+        "hip hop prior gave {}",
+        hip.tempo.bpm
+    );
+    assert!(octave_close(band.tempo.bpm, 88.0) || octave_close(band.tempo.bpm, 176.0));
+    assert!(
+        hip.harmonicity < 0.45,
+        "clicks read as harmonic: {}",
+        hip.harmonicity
+    );
+    // A strummed progression is clearly harmonic.
+    let prog = synth::parse_progression("C G Am F", 4).unwrap();
+    let loops: Vec<SynthChord> = (0..4).flat_map(|_| prog.clone()).collect();
+    let mut y = Vec::new();
+    synth::render_progression(&mut y, 0, &loops, 100.0, Timbre::default(), 1);
+    let a = analyze(&y, SR, &Options::default()).unwrap();
+    assert!(
+        a.harmonicity > 0.55,
+        "strummed song read as sparse: {}",
+        a.harmonicity
+    );
+}

@@ -15,7 +15,7 @@ use symphonia::core::probe::Hint;
 const USAGE: &str = "chordmap: tempo, key, chords and sections from audio.
 
 USAGE
-  chordmap analyze <file> [--json] [--bpm <hint>] [--beats-per-bar <n>]
+  chordmap analyze <file> [--json] [--bpm <hint>] [--beats-per-bar <n>] [--genre band|hiphop|dance]
   chordmap synth <out.wav> --chords \"C G Am F\" [--bpm 100] [--loops 8]
   chordmap version | help
 
@@ -145,6 +145,7 @@ fn main() -> ExitCode {
             let opts = chordmap::Options {
                 bpm_hint: flag(&args, "--bpm").and_then(|v| v.parse().ok()),
                 beats_per_bar: flag(&args, "--beats-per-bar").and_then(|v| v.parse().ok()),
+                genre: flag(&args, "--genre").map(String::from),
             };
             let (samples, rate) = match decode(Path::new(path)) {
                 Ok(v) => v,

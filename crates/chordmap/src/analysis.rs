@@ -19,6 +19,9 @@ pub struct Options {
     pub bpm_hint: Option<f32>,
     /// Beats per bar. Leave unset to choose between 4 and 3 automatically.
     pub beats_per_bar: Option<usize>,
+    /// "band" (default), "hiphop" or "dance": moves the tempo prior and the
+    /// section vocabulary.
+    pub genre: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -83,6 +86,11 @@ pub struct Analysis {
     /// "4/4" or "3/4" (or "n/4" when `beatsPerBar` was given).
     pub meter: String,
     pub beats_per_bar: usize,
+    /// "band", "hiphop" or "dance", as analysed.
+    pub genre: String,
+    /// 0..1: how much of the song has clear chord tones. Low means a beat
+    /// with sparse harmony; trust the key and the tempo more than the chords.
+    pub harmonicity: f32,
     pub tempo: Tempo,
     pub key: Key,
     pub beats: Vec<f32>,
@@ -133,7 +141,17 @@ pub fn analyze(samples: &[f32], sample_rate: u32, opts: &Options) -> Result<Anal
     let mut warnings = Vec::new();
 
     // Tempo and beats.
-    let cands = tempo::candidates(&feat.onset, fps, opts.bpm_hint);
+    let genre = match opts.genre.as_deref() {
+        Some("hiphop") | Some("hip hop") | Some("hip-hop") => "hiphop",
+        Some("dance") | Some("edm") => "dance",
+        _ => "band",
+    };
+    let centre = match genre {
+        "hiphop" => 90.0,
+        "dance" => 128.0,
+        _ => 120.0,
+    };
+    let cands = tempo::candidates(&feat.onset, fps, centre, opts.bpm_hint);
     let bpm = cands[0].bpm;
     let confidence = if cands.len() > 1 && cands[0].score > 0.0 {
         ((cands[0].score - cands[1].score) / cands[0].score).clamp(0.0, 1.0)
@@ -168,6 +186,10 @@ pub fn analyze(samples: &[f32], sample_rate: u32, opts: &Options) -> Result<Anal
     let beat_energy = features::segment_mean(&energy_frames, 1, n, &beat_frames);
     let states = chords::decode(&beat_chroma, &beat_energy);
     let nb = beat_frames.len();
+    let harmonicity = chords::harmonicity(&beat_chroma, &beat_energy);
+    if harmonicity < 0.45 {
+        warnings.push("Sparse harmony: this sounds like a beat with few chord tones, so the chords are implied at best. Trust the tempo and key.".into());
+    }
 
     // Key from duration-weighted chroma.
     let mut global = [0.0f32; 12];
@@ -358,7 +380,23 @@ pub fn analyze(samples: &[f32], sample_rate: u32, opts: &Options) -> Result<Anal
             (s.start..s.end).map(|i| bar_energy[i]).sum::<f32>() / (s.end - s.start).max(1) as f32
         })
         .collect();
-    let guesses = sections::guesses(&segs, &seg_energy);
+    let mut guesses = sections::guesses(&segs, &seg_energy);
+    if genre == "hiphop" {
+        for g in guesses.iter_mut() {
+            if *g == "chorus" {
+                *g = "hook";
+            }
+        }
+    }
+    if genre == "dance" {
+        for g in guesses.iter_mut() {
+            if *g == "chorus" {
+                *g = "drop";
+            } else if *g == "verse" {
+                *g = "break";
+            }
+        }
+    }
     let letters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
     let sections_out: Vec<Section> = segs
         .iter()
@@ -446,6 +484,8 @@ pub fn analyze(samples: &[f32], sample_rate: u32, opts: &Options) -> Result<Anal
         tuning_cents,
         meter,
         beats_per_bar: bpb,
+        genre: genre.to_string(),
+        harmonicity,
         tempo: Tempo {
             bpm: (bpm * 10.0).round() / 10.0,
             confidence,

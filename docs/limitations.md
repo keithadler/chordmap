@@ -97,3 +97,28 @@ with the right amount of trust.
 - The pitch bloom is a rough live chroma from a 4096-point FFT, not the
   engine's analysis; it reacts to whatever is loudest, bass included.
 - Fullscreen needs a click or key press first in most browsers.
+
+## Stems, mixer and pitch
+- Quick mode is centre-channel cancellation: fine for a lead vocal mixed
+  centre, useless on mono, and it removes anything else that is centred
+  above 150 Hz, such as a snare or a centred lead guitar.
+- AI mode uses the KUIELab MDX-Net "B" models from 2021. Vocals are clean;
+  drums and bass are good; "other" is the muddiest. Expect faint bleed on
+  dense mixes. Models are 20 to 28 MB each and take about 40 seconds per
+  stem with WebGPU on a laptop, several minutes on CPU WebAssembly.
+- The models want 44.1 kHz; other rates are resampled first.
+- Pitch shift is a phase vocoder: fine within a few semitones, smeary on
+  transients and past about five semitones.
+- Stems and mixes live in memory only; they are not saved with the chart.
+
+## Genre
+- The genre switch only moves the tempo prior and the section vocabulary.
+  It does not change the chord engine; a rap over a two-chord loop still
+  gets those two chords, and a beat with no harmony gets the warning.
+- Harmonicity is the energy-weighted match of the beat chroma to any triad
+  or seventh, scaled by how peaked the chroma is. It is a rough gauge.
+
+## Installing
+- Chrome, Edge and Android offer the install prompt; Safari on iPhone and
+  iPad needs Share then Add to Home Screen; Safari on a Mac uses File then
+  Add to Dock. Installed or not, everything runs the same.

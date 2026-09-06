@@ -32,7 +32,8 @@ fn blackman(u: f64) -> f64 {
     0.42 + 0.5 * p.cos() + 0.08 * (2.0 * p).cos()
 }
 
-/// Windowed-sinc resampling of a mono signal.
+/// Windowed-sinc resampling of a mono signal. The kernel is tabulated over
+/// 256 fractional phases so the inner loop is a plain dot product.
 pub fn resample(x: &[f32], from: u32, to: u32) -> Vec<f32> {
     if from == to || x.is_empty() {
         return x.to_vec();
@@ -40,29 +41,49 @@ pub fn resample(x: &[f32], from: u32, to: u32) -> Vec<f32> {
     let ratio = from as f64 / to as f64;
     let fc = if ratio > 1.0 { 0.45 / ratio } else { 0.45 };
     const HALF: i64 = 16;
+    const TAPS: usize = (2 * HALF) as usize;
+    const PHASES: usize = 256;
+    // table[phase][tap]: kernel for an output position `phase / PHASES` past a sample.
+    let mut table = vec![0.0f32; PHASES * TAPS];
+    for ph in 0..PHASES {
+        let frac = ph as f64 / PHASES as f64;
+        let mut sum = 0.0;
+        for (k, slot) in table[ph * TAPS..(ph + 1) * TAPS].iter_mut().enumerate() {
+            let t = (k as i64 - HALF + 1) as f64 - frac;
+            let w = 2.0 * fc * sinc(2.0 * fc * t) * blackman(t / HALF as f64);
+            *slot = w as f32;
+            sum += w;
+        }
+        if sum.abs() > 1e-9 {
+            for slot in table[ph * TAPS..(ph + 1) * TAPS].iter_mut() {
+                *slot /= sum as f32;
+            }
+        }
+    }
     let n_out = ((x.len() as f64) / ratio).floor() as usize;
     let mut out = Vec::with_capacity(n_out);
     for i in 0..n_out {
         let pos = i as f64 * ratio;
         let i0 = pos.floor() as i64;
         let frac = pos - i0 as f64;
-        let mut acc = 0.0f64;
-        let mut wsum = 0.0f64;
-        for k in (-HALF + 1)..=HALF {
-            let idx = i0 + k;
-            if idx < 0 || idx >= x.len() as i64 {
-                continue;
+        let ph = ((frac * PHASES as f64).round() as usize).min(PHASES - 1);
+        let kern = &table[ph * TAPS..(ph + 1) * TAPS];
+        let start = i0 - HALF + 1;
+        let mut acc = 0.0f32;
+        if start >= 0 && (start as usize + TAPS) <= x.len() {
+            let src = &x[start as usize..start as usize + TAPS];
+            for k in 0..TAPS {
+                acc += kern[k] * src[k];
             }
-            let t = k as f64 - frac;
-            let w = 2.0 * fc * sinc(2.0 * fc * t) * blackman(t / HALF as f64);
-            acc += w * x[idx as usize] as f64;
-            wsum += w;
-        }
-        out.push(if wsum.abs() > 1e-9 {
-            (acc / wsum) as f32
         } else {
-            0.0
-        });
+            for (k, &w) in kern.iter().enumerate() {
+                let idx = start + k as i64;
+                if idx >= 0 && (idx as usize) < x.len() {
+                    acc += w * x[idx as usize];
+                }
+            }
+        }
+        out.push(acc);
     }
     out
 }

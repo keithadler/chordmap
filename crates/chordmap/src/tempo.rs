@@ -11,14 +11,15 @@ pub struct TempoCandidate {
 const MIN_BPM: f32 = 40.0;
 const MAX_BPM: f32 = 240.0;
 
-fn prior(bpm: f32) -> f32 {
-    let d = (bpm / 120.0).log2();
+fn prior(bpm: f32, centre: f32) -> f32 {
+    let d = (bpm / centre).log2();
     (-0.5 * d * d).exp()
 }
 
-/// Ranked tempo candidates. With a hint, the candidate nearest the hint
-/// is moved to the front.
-pub fn candidates(onset: &[f32], fps: f32, hint: Option<f32>) -> Vec<TempoCandidate> {
+/// Ranked tempo candidates. `centre` is where the prior peaks (120 for a
+/// band, 90 for hip hop, 128 for dance). With a hint, the candidate nearest
+/// the hint is moved to the front.
+pub fn candidates(onset: &[f32], fps: f32, centre: f32, hint: Option<f32>) -> Vec<TempoCandidate> {
     let n = onset.len();
     if n < 8 {
         return vec![TempoCandidate {
@@ -39,7 +40,7 @@ pub fn candidates(onset: &[f32], fps: f32, hint: Option<f32>) -> Vec<TempoCandid
         }
         *a = s / e0;
     }
-    let score = |lag: usize| ac[lag] * prior(60.0 * fps / lag as f32);
+    let score = |lag: usize| ac[lag] * prior(60.0 * fps / lag as f32, centre);
     let mut peaks: Vec<TempoCandidate> = Vec::new();
     for lag in min_lag.max(2)..=max_lag {
         if lag + 1 >= ac.len() {

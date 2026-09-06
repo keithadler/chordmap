@@ -9,3 +9,4 @@ node_modules
 /testdata/local
 /.claude
 /examples/web/local
+/examples/web/vendor

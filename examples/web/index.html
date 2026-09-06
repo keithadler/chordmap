@@ -6,7 +6,11 @@
 <title>chordmap: tempo, key, chords and sections from any song, in your browser</title>
 <meta name="description" content="Drop a song and get its BPM, key, chord chart, section map and a capo suggestion. Free, open source, and the audio never leaves your browser.">
 <meta name="theme-color" content="#7c3aed">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237c3aed'/%3E%3Cpath d='M7 22V10M13 22V14M19 22V8M25 22V16' stroke='white' stroke-width='3.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="./icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="chordmap">
 <link rel="manifest" href="./manifest.webmanifest">
 <script>
   (function () { try { var t = localStorage.getItem("chordmap.theme"); var dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches); document.documentElement.dataset.theme = dark ? "dark" : "light"; } catch (e) { document.documentElement.dataset.theme = "light"; } })();
@@ -170,6 +174,12 @@
   .ed-hint { color: var(--muted); font-size: 13px; margin-left: auto; margin-right: 8px; }
   .check { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
 
+  .mixer { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+  .mixer .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .faders { display: grid; gap: 6px; margin-top: 10px; }
+  .fader { display: grid; grid-template-columns: 70px 1fr auto; align-items: center; gap: 10px; font-size: 14px; text-transform: capitalize; }
+  .fader input[type=range] { accent-color: var(--accent); }
+  #genre { margin-top: 2px; }
   .live { margin-top: 14px; }
   .live-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
   .live-head .hint { color: var(--muted); font-size: 13px; flex: 1; }
@@ -230,6 +240,7 @@
     <nav>
       <a href="https://github.com/keithadler/chordmap" target="_blank" rel="noopener">Source</a>
       <a href="https://github.com/keithadler/chordmap#limits" target="_blank" rel="noopener">Limits</a>
+      <button class="theme" id="install" type="button" hidden>⤓ Install app</button>
       <button class="theme" id="theme" type="button" aria-label="Toggle dark mode">◐ Theme</button>
     </nav>
   </header>
@@ -283,6 +294,7 @@
           <button class="btn ghost small" id="tap" type="button">Tap tempo</button>
           <button class="btn ghost small" id="reset-bpm" type="button" hidden>Reset</button>
         </div>
+        <div class="row"><span class="seg" id="genre" title="Moves the tempo prior and the section names"><button type="button" data-v="band" class="on">Band</button><button type="button" data-v="hiphop">Hip hop</button><button type="button" data-v="dance">Dance</button></span></div>
       </div>
       <div class="tile key">
         <div class="label">Key</div>
@@ -333,6 +345,25 @@
           <button class="btn ghost small" id="nudge-left" type="button" title="Move bar lines one beat earlier">◀ beat</button>
           <button class="btn ghost small" id="nudge-right" type="button" title="Move bar lines one beat later">beat ▶</button>
         </span>
+      </div>
+      <div class="mixer" id="mixer" hidden>
+        <div class="controls">
+          <label class="field practice">Play
+            <select id="source"></select>
+          </label>
+          <label class="field practice">Pitch
+            <select id="pitch">
+              <option value="-6">−6</option><option value="-5">−5</option><option value="-4">−4</option><option value="-3">−3</option><option value="-2">−2</option><option value="-1">−1</option>
+              <option value="0" selected>Original</option>
+              <option value="1">+1</option><option value="2">+2</option><option value="3">+3</option><option value="4">+4</option><option value="5">+5</option><option value="6">+6</option>
+            </select>
+          </label>
+          <button class="btn ghost small practice" id="separate" type="button">Separate stems with AI</button>
+          <button class="btn ghost small practice" id="rechart" type="button" hidden>Chart again from the stems</button>
+        </div>
+        <div class="faders" id="faders" hidden></div>
+        <div class="hint" id="separate-note"></div>
+        <div class="hint" id="mix-status" aria-live="polite"></div>
       </div>
       <div class="timeline" id="timeline" title="Click to jump"><canvas id="wave"></canvas></div>
       <div class="live" id="live" hidden>

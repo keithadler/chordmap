@@ -186,3 +186,39 @@ pub fn decode(beat_chroma: &[f32], beat_energy: &[f32]) -> Vec<usize> {
     }
     path
 }
+
+/// How chord-like the beats are: the energy-weighted mean of the best
+/// triad-or-seventh match minus what random chroma would score. About 0.7
+/// for a strummed song, under 0.4 for drums with a bass line and a rap.
+pub fn harmonicity(beat_chroma: &[f32], beat_energy: &[f32]) -> f32 {
+    let n = beat_energy.len();
+    if n == 0 {
+        return 0.0;
+    }
+    let tpl = templates();
+    let mut acc = 0.0;
+    let mut wsum = 0.0;
+    for b in 0..n {
+        let c = &beat_chroma[b * 12..b * 12 + 12];
+        let best = tpl[..NO_CHORD]
+            .iter()
+            .map(|t| c.iter().zip(t.iter()).map(|(a, b)| a * b).sum::<f32>())
+            .fold(0.0f32, f32::max);
+        // Flat chroma scores about 0.5 against a triad; a clean triad scores 1.
+        // Noise still finds some triad, so also ask how peaked the chroma is:
+        // the top three pitch classes hold nearly everything for a chord and
+        // about a third of it for drums or noise.
+        let mut sorted = c.to_vec();
+        sorted.sort_by(|x, y| y.partial_cmp(x).unwrap());
+        let total: f32 = sorted.iter().sum::<f32>().max(1e-9);
+        let peak = ((sorted[0] + sorted[1] + sorted[2]) / total - 0.35) / 0.55;
+        let w = beat_energy[b].max(0.0);
+        acc += ((best - 0.5) * 2.0).clamp(0.0, 1.0) * peak.clamp(0.0, 1.0) * w;
+        wsum += w;
+    }
+    if wsum > 0.0 {
+        acc / wsum
+    } else {
+        0.0
+    }
+}

@@ -28,5 +28,13 @@
 - Visualize mode: Stage, Flow and Aurora, full screen, keyboard driven
   (1 2 3, space, arrows, F, Esc), fed by the chart and an AnalyserNode on
   the playing audio.
+- Practice mix: original, centre-cancel instrumental or vocals, AI stems
+  (KUIELab MDX-Net vocals, drums, bass, other via onnxruntime-web, WebGPU
+  when available) with a stem mixer, pitch shift in semitones at the same
+  tempo, and "chart again from the stems".
+- Genre switch (band, hip hop, dance): tempo prior at 120, 90 or 128 BPM,
+  hook and drop section names, sparse-harmony detection with a warning.
+- Installable app: PNG icons, maskable icons, install button, iOS hint.
+- Resampler tabulates its kernel (about ten times faster).
 - Live panel under the waveform runs the same visualizer inline while the
   song plays, with its own style switch and a full-screen button.

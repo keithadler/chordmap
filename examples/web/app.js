@@ -5,6 +5,8 @@ import { diagram, ukeDiagram } from "./chords-guitar.js?v=dev";
 import * as library from "./library.js?v=dev";
 import { peaksOf, draw as drawWave } from "./waveform.js?v=dev";
 import { openVisualizer } from "./visualizer.js?v=dev";
+import { separate, MODELS, MODEL_RATE, supportsWebGPU } from "./stems.js?v=dev";
+import { encodeWav, mixStems, tame } from "./mix.js?v=dev";
 import { midiBytes, chordPro, shareLink, readShareLink } from "./export.js?v=dev";
 
 const $ = (id) => document.getElementById(id);
@@ -17,6 +19,7 @@ const state = {
   analysis: null, sheet: "", bpmHint: null,
   capo: 0, transpose: 0, show: "shapes", spelling: "auto", taps: [],
   loop: null, shared: false, instrument: "guitar", editing: false, fileKey: null, queue: [],
+  genre: "band", stereo: null, split: null, stems: null, gains: {}, source: "original", pitch: 0, mixUrl: null,
 };
 
 // ---------- a chart shared by link: no audio, everything else works
@@ -56,14 +59,17 @@ worker.onmessage = (e) => {
   e.data.ok ? p.resolve(e.data) : p.reject(new Error(e.data.error));
 };
 worker.onerror = (e) => { setStatus("The analysis engine failed to load: " + (e.message || "unknown error"), true); };
-function runAnalysis(options) {
+function call(op, payload, transfer) {
   const id = nextId++;
-  // The worker gets its own copy so the page keeps the samples for re-runs.
-  const copy = new Float32Array(state.samples);
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });
-    worker.postMessage({ id, samples: copy, sampleRate: state.sampleRate, options }, [copy.buffer]);
+    worker.postMessage({ id, op, ...payload }, transfer || []);
   });
+}
+function runAnalysis(options, samples) {
+  // The worker gets its own copy so the page keeps the samples for re-runs.
+  const copy = new Float32Array(samples || state.samples);
+  return call("analyze", { samples: copy, sampleRate: state.sampleRate, options }, [copy.buffer]);
 }
 
 // ---------- input
@@ -130,6 +136,9 @@ async function openFile(file) {
       for (let i = 0; i < n; i++) mono[i] += d[i] / ch;
     }
     state.samples = mono; state.sampleRate = audio.sampleRate;
+    state.stereo = [audio.getChannelData(0), ch > 1 ? audio.getChannelData(1) : audio.getChannelData(0)];
+    state.split = null; state.stems = null; state.gains = {}; state.source = "original"; state.pitch = 0;
+    if (state.mixUrl) { URL.revokeObjectURL(state.mixUrl); state.mixUrl = null; }
     state.peaks = peaksOf(mono);
     if (state.url) URL.revokeObjectURL(state.url);
     state.url = URL.createObjectURL(file);
@@ -143,9 +152,9 @@ async function openFile(file) {
 async function analyze() {
   setStatus("Listening for the beat, the key and the chords…", false, true);
   const t0 = performance.now();
-  const options = {};
+  const options = { genre: state.genre };
   if (state.bpmHint) options.bpmHint = state.bpmHint;
-  const res = await runAnalysis(options);
+  const res = await runAnalysis(options, state.chartSource || null);
   state.analysis = JSON.parse(res.json);
   state.sheet = res.sheet;
   state.capo = state.analysis.guitar.capo;
@@ -162,6 +171,7 @@ async function analyze() {
   setStatus("");
   render();
   mountLive();
+  renderMixer();
 }
 
 // ---------- helpers
@@ -220,7 +230,9 @@ function render() {
   $("bpm-sub").textContent = a.meter + " time. " + (a.tempo.confidence > 0.5 ? "Confident." : "Could be half or double.") + (alts ? " Also plausible: " + alts + "." : "") + tuning;
   $("reset-bpm").hidden = !state.bpmHint;
   $("key").textContent = keyName();
-  $("key-sub").textContent = (a.key.confidence < 0.05 ? "Close call, could also be " : "Runner-up: ") + a.key.alternative + ".";
+  const harmony = a.harmonicity < 0.45 ? " Sparse harmony: a beat more than a chord song." : a.harmonicity < 0.6 ? " Harmony is thin in places." : "";
+  $("key-sub").textContent = (a.key.confidence < 0.05 ? "Close call, could also be " : "Runner-up: ") + a.key.alternative + "." + harmony;
+  [...$("genre").children].forEach((b) => b.classList.toggle("on", b.dataset.v === state.genre));
   const g = a.guitar;
   $("capo").textContent = g.capo ? "Capo " + g.capo : "No capo";
   const opt = g.options.find((o) => o.capo === g.capo) || {};
@@ -452,6 +464,142 @@ function openSavedChart(r) {
   mountLive();
 }
 renderLibrary();
+
+// ---------- genre
+$("genre").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; state.genre = b.dataset.v; analyze(); });
+
+// ---------- practice mix: source, stems and pitch, rendered to a fresh WAV
+function stemsAvailable() {
+  const out = {};
+  if (state.stems) for (const [k, v] of Object.entries(state.stems)) if (k !== "instrumental") out[k] = v;
+  return out;
+}
+function renderMixer() {
+  const box = $("mixer"); if (!state.stereo) { box.hidden = true; return; }
+  box.hidden = false;
+  const stems = stemsAvailable();
+  const have = Object.keys(stems);
+  const src = $("source"); src.innerHTML = "";
+  const add = (v, t) => { const o = document.createElement("option"); o.value = v; o.textContent = t; src.appendChild(o); };
+  add("original", "Original mix");
+  add("center-inst", "Instrumental (quick, centre cancel)");
+  add("center-voc", "Vocals only (quick, centre cancel)");
+  if (have.includes("vocals")) { add("stems-inst", "Instrumental (AI stems)"); add("stems-voc", "A cappella (AI stems)"); }
+  if (have.length) add("stems-mix", "Stem mixer");
+  src.value = state.source;
+  $("pitch").value = state.pitch;
+  const faders = $("faders"); faders.innerHTML = ""; faders.hidden = state.source !== "stems-mix";
+  for (const name of have) {
+    const row = document.createElement("label"); row.className = "fader";
+    const g = state.gains[name] ?? 1;
+    row.innerHTML = `<span>${esc(name)}</span><input type="range" min="0" max="1.5" step="0.05" value="${g}" data-stem="${esc(name)}"><button type="button" class="btn ghost small" data-mute="${esc(name)}">${g === 0 ? "Unmute" : "Mute"}</button>`;
+    faders.appendChild(row);
+  }
+  const missing = ["vocals", "drums", "bass", "other"].filter((n) => !have.includes(n));
+  $("separate").hidden = !missing.length;
+  $("separate").textContent = have.length ? "Separate more stems (" + missing.join(", ") + ")" : "Separate vocals with AI";
+  $("separate-note").textContent = have.length ? "" : "Downloads the KUIELab MDX-Net models (about " + MODELS.vocals.mb + " MB per stem, cached after) and the onnxruntime engine (14 MB). A four-minute song takes a few minutes on CPU" + (supportsWebGPU() ? ", less with WebGPU." : ".");
+  $("rechart").hidden = !have.includes("vocals");
+}
+let mixTimer = null;
+function scheduleMix() { clearTimeout(mixTimer); mixTimer = setTimeout(applyMix, 250); }
+async function currentSource() {
+  const [l, r] = state.stereo, n = l.length;
+  if (state.source === "original") return [l, r];
+  if (state.source.startsWith("center")) {
+    if (!state.split) {
+      setMixStatus("Splitting the centre channel…");
+      const res = await call("centerSplit", { left: new Float32Array(l), right: new Float32Array(r), sampleRate: state.sampleRate, strength: 1 });
+      state.split = res;
+    }
+    return state.source === "center-inst" ? [state.split.instL, state.split.instR] : [state.split.vocL, state.split.vocR];
+  }
+  const stems = stemsAvailable();
+  if (state.source === "stems-inst") return state.stems.instrumental;
+  if (state.source === "stems-voc") return stems.vocals;
+  return mixStems(stems, state.gains, n);
+}
+function setMixStatus(t) { $("mix-status").textContent = t; }
+async function applyMix() {
+  if (!state.stereo) return;
+  const p = $("player"), was = { t: p.currentTime, playing: !p.paused };
+  try {
+    let [l, r] = await currentSource();
+    l = new Float32Array(l); r = new Float32Array(r);
+    if (state.pitch) {
+      setMixStatus("Shifting pitch " + (state.pitch > 0 ? "+" : "") + state.pitch + "…");
+      const res = await call("pitchShift", { channels: [l, r], sampleRate: state.sampleRate, semitones: state.pitch }, [l.buffer, r.buffer]);
+      [l, r] = res.channels;
+    }
+    const isOriginal = state.source === "original" && !state.pitch;
+    if (state.mixUrl) { URL.revokeObjectURL(state.mixUrl); state.mixUrl = null; }
+    if (isOriginal) { p.src = state.url; }
+    else { state.mixUrl = URL.createObjectURL(encodeWav(tame([l, r]), state.sampleRate)); p.src = state.mixUrl; }
+    p.currentTime = was.t; if (was.playing) p.play().catch(() => {});
+    setMixStatus(isOriginal ? "" : "Playing " + $("source").selectedOptions[0].textContent.toLowerCase() + (state.pitch ? " " + (state.pitch > 0 ? "+" : "") + state.pitch + " semitones" : "") + ".");
+  } catch (err) { setMixStatus("Mix failed: " + (err.message || err)); }
+}
+$("source").addEventListener("change", (e) => { state.source = e.target.value; $("faders").hidden = state.source !== "stems-mix"; scheduleMix(); });
+$("pitch").addEventListener("change", (e) => { state.pitch = +e.target.value; scheduleMix(); });
+$("faders").addEventListener("input", (e) => { const r = e.target.closest("input[data-stem]"); if (!r) return; state.gains[r.dataset.stem] = +r.value; scheduleMix(); });
+$("faders").addEventListener("click", (e) => { const b = e.target.closest("button[data-mute]"); if (!b) return; const n = b.dataset.mute; state.gains[n] = state.gains[n] === 0 ? 1 : 0; renderMixer(); scheduleMix(); });
+
+// Neural separation, chunk by chunk, with a progress line.
+$("separate").addEventListener("click", async () => {
+  const have = Object.keys(stemsAvailable());
+  // Vocals first, since instrumental and a cappella are what most people want; the rest on a second click.
+  const want = have.includes("vocals") ? ["drums", "bass", "other"].filter((n) => !have.includes(n)) : ["vocals"];
+  const btn = $("separate"); btn.disabled = true;
+  try {
+    // The models want 44.1 kHz stereo.
+    let [l, r] = state.stereo;
+    if (state.sampleRate !== MODEL_RATE) {
+      setMixStatus("Resampling to 44.1 kHz…");
+      const ctx = new OfflineAudioContext(2, Math.ceil(l.length * MODEL_RATE / state.sampleRate), MODEL_RATE);
+      const b = ctx.createBuffer(2, l.length, state.sampleRate); b.copyToChannel(l, 0); b.copyToChannel(r, 1);
+      const srcNode = ctx.createBufferSource(); srcNode.buffer = b; srcNode.connect(ctx.destination); srcNode.start();
+      const out = await ctx.startRendering(); l = out.getChannelData(0); r = out.getChannelData(1);
+      state.stereo = [l, r]; state.sampleRate = MODEL_RATE; state.split = null;
+    }
+    const t0 = performance.now();
+    const res = await separate(l, r, want, call, (ev) => {
+      const pct = Math.round(ev.p * 100);
+      setMixStatus((ev.stage === "download" ? "Downloading " + ev.stem + " model " : "Separating " + ev.stem + " ") + pct + "%");
+    });
+    state.stems = Object.assign(state.stems || {}, res);
+    for (const n of Object.keys(res)) if (state.gains[n] === undefined) state.gains[n] = 1;
+    state.source = res.instrumental ? "stems-inst" : "stems-mix";
+    renderMixer();
+    setMixStatus("Separated in " + Math.round((performance.now() - t0) / 1000) + " s.");
+    scheduleMix();
+  } catch (err) { setMixStatus("Separation failed: " + (err.message || err)); }
+  btn.disabled = false;
+});
+
+// Chart again from the stems: drums out, vocals out, so the chroma is the band.
+$("rechart").addEventListener("click", async () => {
+  const stems = stemsAvailable(); if (!stems.vocals) return;
+  const n = state.stereo[0].length, mono = new Float32Array(n);
+  const inst = state.stems.instrumental;
+  const drums = stems.drums;
+  for (let i = 0; i < n; i++) mono[i] = (inst[0][i] + inst[1][i]) * 0.5 - (drums ? (drums[0][i] + drums[1][i]) * 0.5 : 0);
+  state.chartSource = mono;
+  const keep = state.analysis;
+  await analyze();
+  state.chartSource = null;
+  state.analysis.warnings.unshift("Charted from the separated " + (drums ? "instrumental without drums" : "instrumental") + ". Previous chart: " + keep.key.name + ", " + keep.tempo.bpm + " BPM.");
+  render();
+});
+
+// ---------- install as an app
+let installEvent = null;
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; $("install").hidden = false; });
+$("install").addEventListener("click", async () => {
+  if (installEvent) { installEvent.prompt(); await installEvent.userChoice; installEvent = null; $("install").hidden = true; return; }
+  alert("On iPhone or iPad: tap Share, then Add to Home Screen. On a Mac with Safari: File, then Add to Dock.");
+});
+if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !window.navigator.standalone) $("install").hidden = false;
+window.addEventListener("appinstalled", () => { $("install").hidden = true; });
 
 // ---------- practice: loop a section, play it slower without changing pitch
 function setLoop(loop) {

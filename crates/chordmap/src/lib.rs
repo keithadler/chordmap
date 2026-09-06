@@ -16,8 +16,12 @@ pub mod dsp;
 pub mod features;
 pub mod guitar;
 pub mod key;
+pub mod mdx;
 pub mod notes;
+pub mod pitch;
 pub mod sections;
+pub mod separate;
+pub mod spectral;
 pub mod synth;
 pub mod tempo;
 
