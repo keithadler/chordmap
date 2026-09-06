@@ -170,6 +170,12 @@
   .ed-hint { color: var(--muted); font-size: 13px; margin-left: auto; margin-right: 8px; }
   .check { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
 
+  .live { margin-top: 14px; }
+  .live-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  .live-head .hint { color: var(--muted); font-size: 13px; flex: 1; }
+  .live-canvas { position: relative; height: clamp(220px, 34vw, 360px); border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--bg); }
+  .live-canvas.viz { position: relative; inset: auto; z-index: auto; }
+  .live-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   .vizrow { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
   .vizrow .hint { color: var(--muted); font-size: 13px; }
   .viz { position: fixed; inset: 0; z-index: 60; background: var(--bg); cursor: default; }
@@ -204,7 +210,7 @@
   @media (max-width: 600px) { #nowplaying { grid-template-columns: repeat(7, 1fr); } .ring { display: none; } }
 
   @media print {
-    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how, .loopbtn, #edit, #nudge, .editor, .library, .sky, .sample, .vizrow, .viz { display: none !important; }
+    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how, .loopbtn, #edit, #nudge, .editor, .library, .sky, .sample, .vizrow, .viz, .live { display: none !important; }
     body { background: #fff; color: #000; font-size: 12px; }
     .tiles { grid-template-columns: repeat(3, 1fr); }
     .tile, .bar { box-shadow: none; border-color: #bbb; break-inside: avoid; }
@@ -329,7 +335,15 @@
         </span>
       </div>
       <div class="timeline" id="timeline" title="Click to jump"><canvas id="wave"></canvas></div>
-      <div class="row vizrow"><button class="btn" id="visualize" type="button">▶ Visualize</button><span class="hint">Stage for the band, Flow for what is coming, Aurora for the room. Fullscreen, keyboard driven.</span></div>
+      <div class="live" id="live" hidden>
+        <div class="live-head">
+          <span class="seg" id="live-style"><button type="button" data-v="stage">Stage</button><button type="button" data-v="flow" class="on">Flow</button><button type="button" data-v="aurora">Aurora</button></span>
+          <span class="hint">Live while it plays. Stage for the band, Flow for what is coming, Aurora for the room.</span>
+          <button class="btn small" id="live-expand" type="button">⤢ Full screen</button>
+        </div>
+        <div class="live-canvas" id="live-canvas"></div>
+      </div>
+      <div class="row vizrow"><button class="btn" id="visualize" type="button">▶ Visualize full screen</button><span class="hint">Keyboard driven: 1 2 3 switch, space, arrows, F, Esc.</span></div>
       <audio id="player" controls preload="metadata"></audio>
     </div>
 

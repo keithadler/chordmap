@@ -26,11 +26,19 @@ function tapAudio(player) {
   } catch (e) { return false; }
 }
 
+/**
+ * Full screen by default. With `mount` and `inline: true` the same renderer
+ * draws into a panel on the page while the song plays, no toolbar, no keys.
+ */
 export function openVisualizer(opts) {
   const { analysis: a, player, display, colorOf, parseLabel, onClose } = opts;
   const displaySounding = opts.displaySounding || display, transpose = opts.transpose || (() => 0);
-  const root = document.createElement("div"); root.className = "viz"; root.id = "viz";
-  root.innerHTML = `<canvas></canvas>
+  const inline = !!opts.inline;
+  const root = inline ? opts.mount : document.createElement("div");
+  root.classList.add("viz");
+  if (!inline) {
+    root.id = "viz";
+    root.innerHTML = `<canvas></canvas>
     <div class="viz-bar">
       <span class="seg"><button data-s="stage" class="on">Stage</button><button data-s="flow">Flow</button><button data-s="aurora">Aurora</button></span>
       <button data-a="play" title="Space">Play / Pause</button>
@@ -38,10 +46,13 @@ export function openVisualizer(opts) {
       <button data-a="close" title="Esc">Close</button>
     </div>
     <div class="viz-hint">1 2 3 switch · space play · ← → bars · F fullscreen · Esc close</div>`;
-  document.body.appendChild(root);
-  document.body.classList.add("viz-open");
+    document.body.appendChild(root);
+    document.body.classList.add("viz-open");
+  } else {
+    root.innerHTML = `<canvas></canvas>`;
+  }
   const canvas = root.querySelector("canvas"), ctx = canvas.getContext("2d");
-  let style = "stage", raf = 0, lastBeat = -1, pulse = 0, hideTimer = 0, energy = 0, onset = 0;
+  let style = opts.style || "stage", raf = 0, lastBeat = -1, pulse = 0, hideTimer = 0, energy = 0, onset = 0;
   const chroma = new Float32Array(12), rings = [], particles = [];
   const hasAudio = !!player.src && tapAudio(player);
 
@@ -106,13 +117,14 @@ export function openVisualizer(opts) {
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
     // Section name and progress through it.
     // Below the toolbar so nothing collides on a narrow screen.
+    const hy = inline ? 22 : 96, hs = inline ? 14 : 22, m = inline ? 16 : 32;
     if (s) {
-      text(`${s.label} · ${s.guess}`, 32, 96, 22, 700, muted(), "left");
+      text(`${s.label} · ${s.guess}`, m, hy, hs, 700, muted(), "left");
       const p = (t - s.start) / (s.end - s.start);
-      ctx.fillStyle = hexA(col, 0.25); ctx.fillRect(32, 118, w - 64, 4);
-      ctx.fillStyle = col; ctx.fillRect(32, 118, (w - 64) * Math.max(0, Math.min(1, p)), 4);
+      ctx.fillStyle = hexA(col, 0.25); ctx.fillRect(m, hy + hs, w - 2 * m, 3);
+      ctx.fillStyle = col; ctx.fillRect(m, hy + hs, (w - 2 * m) * Math.max(0, Math.min(1, p)), 3);
     }
-    text(`${a.tempo.bpm} BPM · ${a.meter} · ${a.key.name}`, w - 32, 96, 20, 600, muted(), "right");
+    text(`${a.tempo.bpm} BPM · ${a.meter} · ${a.key.name}`, w - m, hy, inline ? 13 : 20, 600, muted(), "right");
     // The chord.
     const big = Math.min(w * 0.3, h * 0.42) * (1 + pulse * 0.05);
     text(cur ? display(cur.label) : "…", w / 2, h * 0.44, big, 800, ink());
@@ -154,13 +166,14 @@ export function openVisualizer(opts) {
     // Now line and header.
     ctx.fillStyle = ink(); ctx.fillRect(nowX - 1.5, lane - laneH, 3, laneH * 2);
     const cur = a.chords[chordIndex(t)];
-    text(cur ? display(cur.label) : "…", 32, Math.max(h * 0.16, 120), Math.min(w * 0.1, h * 0.16), 800, ink(), "left");
-    if (s) text(`${s.label} · ${s.guess}   ${a.tempo.bpm} BPM`, w - 32, Math.max(h * 0.16, 120), 20, 600, muted(), "right");
+    const hy = inline ? h * 0.14 : Math.max(h * 0.16, 120), m = inline ? 16 : 32;
+    text(cur ? display(cur.label) : "…", m, hy, Math.min(w * 0.1, h * 0.16), 800, ink(), "left");
+    if (s) text(`${s.label} · ${s.guess}   ${a.tempo.bpm} BPM`, w - m, hy, inline ? 13 : 20, 600, muted(), "right");
   }
 
   function drawAurora(t, w, h) {
     const { s, col } = frame(t, w, h);
-    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.3;
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * (inline ? 0.26 : 0.3);
     // Slow colour wash and vignette.
     const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.75);
     g.addColorStop(0, hexA(col, 0.16 + energy * 0.2)); g.addColorStop(1, "rgba(0,0,0,0)");
@@ -194,7 +207,7 @@ export function openVisualizer(opts) {
     }
     for (let k = 0; k < 12; k++) {
       const pcK = (k * 7) % 12, ang = k / 12 * Math.PI * 2 - Math.PI / 2, inChord = tones.includes(pcK), hue = FIFTHS_HUE(pcK);
-      text(SHARP[pcK].replace("#", "♯"), cx + Math.cos(ang) * (R * 1.62), cy + Math.sin(ang) * (R * 1.62), 15, 800, inChord ? `hsl(${hue}, 90%, 75%)` : hexA(muted(), 0.7));
+      text(SHARP[pcK].replace("#", "♯"), cx + Math.cos(ang) * (R * (inline ? 1.5 : 1.62)), cy + Math.sin(ang) * (R * (inline ? 1.5 : 1.62)), inline ? 12 : 15, 800, inChord ? `hsl(${hue}, 90%, 75%)` : hexA(muted(), 0.7));
     }
     // Beat rings expanding outward.
     for (const r of rings) { ctx.beginPath(); ctx.arc(cx, cy, R * (0.5 + r.age * 1.6), 0, Math.PI * 2); ctx.strokeStyle = hexA(col, 0.5 * (1 - r.age)); ctx.lineWidth = 2 + (1 - r.age) * 4; ctx.stroke(); }
@@ -217,6 +230,7 @@ export function openVisualizer(opts) {
   let last = performance.now();
   function loop(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (inline && player.paused && !opts.always) { raf = requestAnimationFrame(loop); return; }
     const t = player.currentTime, w = root.clientWidth, h = root.clientHeight;
     if (!player.paused) readAudio();
     const bi = beatIndex(t);
@@ -233,16 +247,18 @@ export function openVisualizer(opts) {
   }
   raf = requestAnimationFrame(loop);
 
-  function setStyle(s) { style = s; root.querySelectorAll("[data-s]").forEach((b) => b.classList.toggle("on", b.dataset.s === s)); try { localStorage.setItem("chordmap.viz", s); } catch (e) { /* private mode */ } }
-  try { const saved = localStorage.getItem("chordmap.viz"); if (saved) setStyle(saved); } catch (e) { /* private mode */ }
+  function setStyle(s) { style = s; root.querySelectorAll("[data-s]").forEach((b) => b.classList.toggle("on", b.dataset.s === s)); if (!inline) { try { localStorage.setItem("chordmap.viz", s); } catch (e) { /* private mode */ } } }
+  if (!inline && !opts.style) { try { const saved = localStorage.getItem("chordmap.viz"); if (saved) setStyle(saved); } catch (e) { /* private mode */ } }
   function close() {
     cancelAnimationFrame(raf); ro.disconnect();
     document.removeEventListener("keydown", keys); root.removeEventListener("mousemove", wake);
+    if (inline) { root.innerHTML = ""; root.classList.remove("viz"); if (onClose) onClose(); return; }
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     root.remove(); document.body.classList.remove("viz-open");
     if (onClose) onClose();
   }
   function keys(e) {
+    if (inline) return;
     if (e.code === "Escape") { e.preventDefault(); close(); }
     else if (e.code === "Space") { e.preventDefault(); player.paused ? player.play() : player.pause(); }
     else if (e.key === "1") setStyle("stage"); else if (e.key === "2") setStyle("flow"); else if (e.key === "3") setStyle("aurora");
@@ -255,15 +271,14 @@ export function openVisualizer(opts) {
   }
   function toggleFull() { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else root.requestFullscreen && root.requestFullscreen().catch(() => {}); }
   function wake() { root.classList.remove("idle"); clearTimeout(hideTimer); hideTimer = setTimeout(() => root.classList.add("idle"), 2500); }
-  document.addEventListener("keydown", keys);
-  root.addEventListener("mousemove", wake); wake();
-  root.querySelector(".viz-bar").addEventListener("click", (e) => {
+  if (!inline) { document.addEventListener("keydown", keys); root.addEventListener("mousemove", wake); wake(); }
+  if (!inline) root.querySelector(".viz-bar").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
     if (b.dataset.s) setStyle(b.dataset.s);
     else if (b.dataset.a === "play") player.paused ? player.play() : player.pause();
     else if (b.dataset.a === "full") toggleFull();
     else if (b.dataset.a === "close") close();
   });
-  if (!hasAudio) root.querySelector(".viz-hint").textContent = "No audio for this chart: Aurora needs the song playing. " + root.querySelector(".viz-hint").textContent;
+  if (!hasAudio && !inline) root.querySelector(".viz-hint").textContent = "No audio for this chart: Aurora needs the song playing. " + root.querySelector(".viz-hint").textContent;
   return { close, setStyle };
 }

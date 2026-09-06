@@ -30,6 +30,7 @@ readShareLink().then((shared) => {
   $("results").classList.add("active");
   document.body.classList.add("shared");
   render();
+  mountLive();
 });
 
 // ---------- offline (the app shell is cached after the first visit)
@@ -103,6 +104,7 @@ function setStatus(text, err, busy) {
 }
 function showHome() {
   renderLibrary();
+  if (liveViz) { liveViz.close(); liveViz = null; }
   $("results").classList.remove("active");
   $("home").style.display = "";
   setStatus("");
@@ -159,6 +161,7 @@ async function analyze() {
   $("results").classList.add("active");
   setStatus("");
   render();
+  mountLive();
 }
 
 // ---------- helpers
@@ -446,6 +449,7 @@ function openSavedChart(r) {
   $("fmeta").textContent = fmtTime(r.analysis.duration) + " · saved chart, drop the audio file to play along";
   $("home").style.display = "none"; $("results").classList.add("active"); document.body.classList.add("shared");
   render();
+  mountLive();
 }
 renderLibrary();
 
@@ -583,14 +587,32 @@ function base() { return ((state.file ? state.file.name : state.sharedTitle || "
 $("copy").addEventListener("click", async () => { try { await navigator.clipboard.writeText(sheetText()); $("copy").textContent = "Copied"; setTimeout(() => ($("copy").textContent = "Copy chord sheet"), 1500); } catch (e) { download(base() + " chords.txt", sheetText(), "text/plain"); } });
 $("dl-sheet").addEventListener("click", () => download(base() + " chords.txt", sheetText(), "text/plain"));
 $("print").addEventListener("click", () => window.print());
-let viz = null;
+let viz = null, liveViz = null;
+// Aurora is for the room, so it names what is heard, not the capo shape.
+const displaySounding = (l) => { const c = parseLabel(l); if (!c) return "N.C."; const pc = (c.pc + state.transpose + 120) % 12; return spell(pc, (shownTonicBase() + state.transpose + 120) % 12, state.analysis.key.minor) + c.suffix; };
+const vizOpts = () => ({ analysis: state.analysis, player: $("player"), display, displaySounding, transpose: () => state.transpose, colorOf, parseLabel });
 $("visualize").addEventListener("click", () => {
   if (viz) return;
-  // Aurora is for the room, so it names what is heard, not the capo shape.
-  const displaySounding = (l) => { const c = parseLabel(l); if (!c) return "N.C."; const pc = (c.pc + state.transpose + 120) % 12; return spell(pc, (shownTonicBase() + state.transpose + 120) % 12, state.analysis.key.minor) + c.suffix; };
-  viz = openVisualizer({ analysis: state.analysis, player: $("player"), display, displaySounding, transpose: () => state.transpose, colorOf, parseLabel, onClose: () => { viz = null; } });
+  viz = openVisualizer({ ...vizOpts(), style: liveStyle, onClose: () => { viz = null; } });
   if (!state.shared && $("player").paused) $("player").play().catch(() => {});
 });
+// The live panel draws the same thing inline while the song plays.
+let liveStyle = "flow";
+try { liveStyle = localStorage.getItem("chordmap.live") || "flow"; } catch (e) { /* private mode */ }
+function mountLive() {
+  if (liveViz) liveViz.close();
+  liveViz = null;
+  if (!state.analysis || state.shared) { $("live").hidden = true; return; }
+  $("live").hidden = false;
+  [...$("live-style").children].forEach((b) => b.classList.toggle("on", b.dataset.v === liveStyle));
+  liveViz = openVisualizer({ ...vizOpts(), inline: true, mount: $("live-canvas"), style: liveStyle, always: true });
+}
+$("live-style").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  liveStyle = b.dataset.v; try { localStorage.setItem("chordmap.live", liveStyle); } catch (err) { /* private mode */ }
+  if (liveViz) liveViz.setStyle(liveStyle); [...$("live-style").children].forEach((x) => x.classList.toggle("on", x === b));
+});
+$("live-expand").addEventListener("click", () => $("visualize").click());
 $("player").addEventListener("play", () => document.body.classList.add("playing"));
 $("player").addEventListener("pause", () => document.body.classList.remove("playing"));
 $("dl-midi").addEventListener("click", () => download(base() + " chords.mid", midiBytes(state.analysis), "audio/midi"));

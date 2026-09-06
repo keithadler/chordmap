@@ -28,3 +28,5 @@
 - Visualize mode: Stage, Flow and Aurora, full screen, keyboard driven
   (1 2 3, space, arrows, F, Esc), fed by the chart and an AnalyserNode on
   the playing audio.
+- Live panel under the waveform runs the same visualizer inline while the
+  song plays, with its own style switch and a full-screen button.
