@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 (2026-09-06)
+
+First public release, live at https://keithadler.github.io/chordmap/.
 
 - First version: tempo with candidates and hints, beat tracking, major and
   minor chords per beat, key with runner-up, downbeats and bars, sections

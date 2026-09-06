@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/chordmap", "crates/chordmap-wasm", "crates/chordmap-cli"]
 
 [workspace.package]
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.75"
 license = "MIT"
@@ -14,7 +14,7 @@ keywords = ["music", "audio", "chords", "tempo", "wasm"]
 categories = ["multimedia::audio", "wasm"]
 
 [workspace.dependencies]
-chordmap = { path = "crates/chordmap", version = "0.1.0" }
+chordmap = { path = "crates/chordmap", version = "1.0.0" }
 rustfft = "6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
