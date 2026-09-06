@@ -7,99 +7,147 @@
 <meta name="description" content="Drop a song and get its BPM, key, chord chart, section map and a capo suggestion. Free, open source, and the audio never leaves your browser.">
 <meta name="theme-color" content="#7c3aed">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237c3aed'/%3E%3Cpath d='M7 22V10M13 22V14M19 22V8M25 22V16' stroke='white' stroke-width='3.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="manifest" href="./manifest.webmanifest">
 <script>
   (function () { try { var t = localStorage.getItem("chordmap.theme"); var dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches); document.documentElement.dataset.theme = dark ? "dark" : "light"; } catch (e) { document.documentElement.dataset.theme = "light"; } })();
 </script>
 <style>
   :root {
-    --bg: #f5f4f9; --bg-grad: radial-gradient(1200px 500px at 50% -10%, #e9ddff 0%, transparent 60%);
-    --card: #ffffff; --ink: #14121f; --muted: #5f5b70; --line: #e5e2ee; --line-strong: #cbc5da;
-    --accent: #7c3aed; --accent-ink: #ffffff; --accent-soft: #f0e9ff; --accent-glow: 0 10px 30px -12px rgba(124, 58, 237, .45);
+    --bg: #f6f5fb; --card: #ffffff; --card-2: #fbfaff; --ink: #15122a; --muted: #625d78; --line: #e6e2f1; --line-strong: #cfc8e3;
+    --accent: #7c3aed; --accent-2: #db2777; --accent-ink: #ffffff; --accent-soft: #efe7ff; --accent-glow: 0 12px 40px -14px rgba(124, 58, 237, .55);
     --ok: #15803d; --ok-soft: #e3f5e9; --warn: #92400e; --warn-soft: #fdf1df; --err: #b91c1c; --err-soft: #fde8e8;
-    --radius: 16px; --shadow: 0 1px 2px rgba(20, 18, 31, .06), 0 10px 30px -18px rgba(20, 18, 31, .25);
+    --radius: 18px; --shadow: 0 1px 2px rgba(21, 18, 42, .05), 0 14px 40px -22px rgba(21, 18, 42, .35);
     --sA: #7c3aed; --sB: #0ea5e9; --sC: #f59e0b; --sD: #10b981; --sE: #ef4444; --sF: #ec4899; --sG: #6366f1; --sH: #84cc16;
+    --blob1: rgba(124, 58, 237, .28); --blob2: rgba(14, 165, 233, .22); --blob3: rgba(236, 72, 153, .18);
     color-scheme: light;
   }
   :root[data-theme="dark"] {
-    --bg: #0e0c14; --bg-grad: radial-gradient(1200px 500px at 50% -10%, #2a1a4d 0%, transparent 60%);
-    --card: #17141f; --ink: #ece9f4; --muted: #9c97ad; --line: #2a2536; --line-strong: #3d3650;
-    --accent: #a78bfa; --accent-ink: #14102a; --accent-soft: #2a2145; --accent-glow: 0 10px 30px -12px rgba(167, 139, 250, .5);
+    --bg: #0b0a12; --card: #15131f; --card-2: #1a1727; --ink: #efecf8; --muted: #9d97b3; --line: #262234; --line-strong: #3b3550;
+    --accent: #a78bfa; --accent-2: #f472b6; --accent-ink: #14102a; --accent-soft: #261e42; --accent-glow: 0 14px 44px -14px rgba(167, 139, 250, .6);
     --ok: #4ade80; --ok-soft: #10301d; --warn: #f2b55c; --warn-soft: #3a2a0f; --err: #ff8a80; --err-soft: #3d1b19;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 12px 32px -18px rgba(0, 0, 0, .8);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 18px 50px -24px rgba(0, 0, 0, .9);
+    --blob1: rgba(124, 58, 237, .45); --blob2: rgba(14, 165, 233, .28); --blob3: rgba(236, 72, 153, .25);
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
-  body { background: var(--bg-grad), var(--bg); background-attachment: fixed; color: var(--ink); font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
-  body.dragging::after { content: "Drop to analyze"; position: fixed; inset: 0; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 4px dashed var(--accent); display: grid; place-items: center; font-size: 28px; font-weight: 700; color: var(--accent); pointer-events: none; z-index: 50; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  /* Ambient colour behind everything. */
+  .sky { position: fixed; inset: -20vh -10vw; z-index: -1; pointer-events: none; filter: blur(70px); opacity: .9; }
+  .sky i { position: absolute; border-radius: 50%; width: 60vw; height: 60vw; max-width: 900px; max-height: 900px; }
+  .sky i:nth-child(1) { background: var(--blob1); left: -10vw; top: -10vh; animation: drift1 26s ease-in-out infinite alternate; }
+  .sky i:nth-child(2) { background: var(--blob2); right: -15vw; top: 5vh; animation: drift2 32s ease-in-out infinite alternate; }
+  .sky i:nth-child(3) { background: var(--blob3); left: 30vw; bottom: -30vh; animation: drift3 38s ease-in-out infinite alternate; }
+  @keyframes drift1 { to { transform: translate(12vw, 14vh) scale(1.1); } }
+  @keyframes drift2 { to { transform: translate(-10vw, 18vh) scale(.9); } }
+  @keyframes drift3 { to { transform: translate(-16vw, -10vh) scale(1.15); } }
+  @media (prefers-reduced-motion: reduce) { .sky i { animation: none !important; } * { transition: none !important; } }
+  body.dragging::after { content: "Drop to analyze"; position: fixed; inset: 0; background: color-mix(in srgb, var(--accent) 14%, transparent); border: 4px dashed var(--accent); display: grid; place-items: center; font-size: 30px; font-weight: 800; color: var(--accent); pointer-events: none; z-index: 50; backdrop-filter: blur(4px); }
   a { color: var(--accent); }
   button { font: inherit; color: inherit; }
   :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px 64px; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px 64px; }
+
   header { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; gap: 16px; }
-  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; font-weight: 700; font-size: 20px; letter-spacing: -.01em; }
-  .brand svg { width: 28px; height: 28px; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; font-weight: 800; font-size: 21px; letter-spacing: -.02em; }
+  .brand svg { width: 30px; height: 30px; filter: drop-shadow(0 6px 14px rgba(124,58,237,.35)); }
   nav { display: flex; align-items: center; gap: 4px; }
   nav a { color: var(--muted); text-decoration: none; margin-left: 18px; font-size: 15px; }
   nav a:hover { color: var(--ink); }
   .theme { display: inline-flex; align-items: center; gap: 6px; margin-left: 14px; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; font-size: 14px; cursor: pointer; color: var(--muted); }
-  .hero { text-align: center; padding: 28px 0 22px; }
-  .hero h1 { font-size: clamp(30px, 5vw, 44px); margin: 0 0 8px; letter-spacing: -.02em; line-height: 1.1; }
-  .hero p { color: var(--muted); font-size: 18px; margin: 0 auto; max-width: 640px; }
-  .pill { display: inline-flex; align-items: center; gap: 8px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 6px 14px; font-size: 14px; font-weight: 600; margin-top: 14px; }
-  .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
-  .drop { margin: 22px auto 0; max-width: 620px; border: 2px dashed var(--line-strong); background: var(--card); border-radius: var(--radius); padding: 34px 20px; cursor: pointer; transition: all .15s; text-align: center; }
-  .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
-  .drop .big { font-size: 19px; font-weight: 600; } .drop .sub { color: var(--muted); font-size: 14px; margin-top: 4px; }
-  .btn { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 12px; padding: 10px 16px; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; box-shadow: var(--accent-glow); }
+
+  /* Hero */
+  .hero { text-align: center; padding: 40px 0 10px; }
+  .hero h1 { font-size: clamp(38px, 7vw, 68px); margin: 0 0 10px; letter-spacing: -.04em; line-height: 1.02; font-weight: 800; background: linear-gradient(120deg, var(--ink) 30%, var(--accent) 65%, var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p { color: var(--muted); font-size: 19px; margin: 0 auto; max-width: 620px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 6px 14px; font-size: 14px; font-weight: 700; margin-top: 16px; }
+  .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 25%, transparent); }
+  .drop { margin: 26px auto 0; max-width: 680px; border: 2px dashed var(--line-strong); background: color-mix(in srgb, var(--card) 80%, transparent); backdrop-filter: blur(10px); border-radius: 22px; padding: 34px 20px; cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s; text-align: center; position: relative; overflow: hidden; }
+  .drop::before { content: ""; position: absolute; inset: 0; background: radial-gradient(600px 200px at 50% 120%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 70%); pointer-events: none; }
+  .drop:hover, .drop.over { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--accent-glow); }
+  .drop .big { font-size: 20px; font-weight: 700; } .drop .sub { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  .drop .eq { display: flex; justify-content: center; gap: 4px; height: 34px; align-items: flex-end; margin-bottom: 12px; }
+  .drop .eq i { width: 6px; border-radius: 3px; background: linear-gradient(180deg, var(--accent-2), var(--accent)); height: 30%; opacity: .8; }
+  .drop .eq i:nth-child(odd) { height: 60%; } .drop .eq i:nth-child(3n) { height: 100%; } .drop .eq i:nth-child(5n) { height: 45%; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 12px; padding: 10px 16px; background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, var(--accent-2))); color: var(--accent-ink); font-weight: 700; cursor: pointer; box-shadow: var(--accent-glow); transition: transform .12s, filter .12s; }
+  .btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
   .btn.ghost { background: var(--card); color: var(--ink); border: 1px solid var(--line); box-shadow: none; }
+  .btn.ghost:hover { border-color: var(--accent); }
   .btn.small { padding: 6px 10px; font-size: 14px; border-radius: 9px; }
   .btn:disabled { opacity: .5; cursor: default; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .status { text-align: center; color: var(--muted); margin-top: 16px; min-height: 24px; }
+  .status { text-align: center; color: var(--muted); margin-top: 16px; min-height: 28px; display: flex; justify-content: center; align-items: center; gap: 10px; }
   .status.err { color: var(--err); }
+  .status .listen { display: inline-flex; gap: 3px; align-items: flex-end; height: 18px; }
+  .status .listen i { width: 4px; height: 6px; border-radius: 2px; background: var(--accent); animation: listen .9s ease-in-out infinite; }
+  .status .listen i:nth-child(2) { animation-delay: .15s; } .status .listen i:nth-child(3) { animation-delay: .3s; } .status .listen i:nth-child(4) { animation-delay: .45s; } .status .listen i:nth-child(5) { animation-delay: .6s; }
+  @keyframes listen { 0%, 100% { height: 6px; } 50% { height: 18px; } }
+
+  /* Sample chart on the landing page */
+  .sample { margin: 34px auto 0; max-width: 680px; text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); position: relative; }
+  .sample .cap { position: absolute; top: -11px; left: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .sample .stats { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; color: var(--muted); margin-bottom: 10px; }
+  .sample .stats b { color: var(--ink); font-size: 18px; margin-right: 4px; }
+  .sample .map { display: flex; height: 10px; border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+  .sample .map i { display: block; height: 100%; }
+  .sample .bars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .sample .bar { cursor: default; }
   .how { margin-top: 40px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
   .how div { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
   .how b { display: block; margin-bottom: 4px; } .how span { color: var(--muted); font-size: 14px; }
+  .library { max-width: 680px; margin: 26px auto 0; text-align: left; }
+  .library h3 { font-size: 15px; margin: 0 0 8px; } .library h3 small { color: var(--muted); font-weight: 400; margin-left: 8px; }
+  .library ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+  .library li { display: flex; gap: 8px; align-items: center; }
+  .lib-open { flex: 1; text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; transition: border-color .12s, transform .12s; }
+  .lib-open:hover { border-color: var(--accent); transform: translateY(-1px); } .lib-open span { color: var(--muted); font-size: 13px; }
+  .iconbtn { border: 1px solid var(--line); background: transparent; border-radius: 8px; width: 34px; height: 34px; cursor: pointer; font-size: 15px; display: grid; place-items: center; }
 
+  /* Results */
   #results { display: none; }
-  #results.active { display: block; }
-  .file-line { display: flex; align-items: center; gap: 12px; margin: 6px 0 14px; flex-wrap: wrap; }
-  .file-line .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
+  #results.active { display: block; animation: rise .35s ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+  .file-line { display: flex; align-items: center; gap: 12px; margin: 6px 0 16px; flex-wrap: wrap; }
+  .file-line .name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; font-size: 18px; letter-spacing: -.01em; }
   .file-line .muted { color: var(--muted); font-size: 14px; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
-  .tile { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
-  .tile .label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
-  .tile .value { font-size: 34px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; margin-top: 4px; }
-  .tile .value small { font-size: 16px; font-weight: 600; color: var(--muted); margin-left: 4px; }
-  .tile .sub { color: var(--muted); font-size: 14px; margin-top: 6px; }
-  .tile .row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
-  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; margin-top: 16px; box-shadow: var(--shadow); }
-  .panel h3 { margin: 0 0 12px; font-size: 16px; }
-  .controls { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  .tile { background: linear-gradient(180deg, var(--card-2), var(--card)); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+  .tile::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--tone, var(--accent)); }
+  .tile::after { content: ""; position: absolute; width: 180px; height: 180px; right: -60px; top: -60px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--tone, var(--accent)) 22%, transparent), transparent 70%); pointer-events: none; }
+  @media (max-width: 999px) { .tile.guitar { grid-column: 1 / -1; } }
+  .tile.tempo { --tone: var(--accent); } .tile.key { --tone: #0ea5e9; } .tile.guitar { --tone: #f59e0b; }
+  .tile .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .12em; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .tile .label::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--tone, var(--accent)); }
+  .tile .value { font-size: 40px; font-weight: 800; letter-spacing: -.03em; line-height: 1.05; margin-top: 8px; }
+  .tile .value small { font-size: 16px; font-weight: 700; color: var(--muted); margin-left: 6px; letter-spacing: 0; }
+  .tile .sub { color: var(--muted); font-size: 14px; margin-top: 8px; }
+  .tile .row { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+  .panel { background: color-mix(in srgb, var(--card) 88%, transparent); backdrop-filter: blur(12px); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; margin-top: 16px; box-shadow: var(--shadow); }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
   .field { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
   .field select, .field input { padding: 7px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
-  .seg button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; font-size: 14px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); }
+  .seg button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; font-size: 14px; transition: background .12s; }
   .seg button.on { background: var(--accent); color: var(--accent-ink); }
-  .timeline { position: relative; height: 44px; border-radius: 10px; overflow: hidden; display: flex; margin-top: 10px; cursor: pointer; border: 1px solid var(--line); }
-  .timeline .sec { height: 100%; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px; opacity: .85; border-right: 1px solid rgba(255,255,255,.4); overflow: hidden; white-space: nowrap; }
-  .timeline .head { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); left: 0; pointer-events: none; }
-  audio { width: 100%; margin-top: 12px; }
-  .section { margin-top: 18px; }
+  .timeline { position: relative; height: 84px; border-radius: 12px; overflow: hidden; margin-top: 14px; cursor: pointer; border: 1px solid var(--line); background: var(--bg); }
+  .timeline canvas { width: 100%; height: 100%; display: block; }
+  audio { width: 100%; margin-top: 12px; border-radius: 12px; }
+  .section { margin-top: 22px; }
   .section h4 { margin: 0 0 8px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
-  .section h4 .dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .section h4 .dot { width: 22px; height: 22px; border-radius: 7px; display: inline-grid; place-items: center; color: #fff; font-size: 12px; font-weight: 800; }
   .section h4 .guess { color: var(--muted); font-weight: 500; }
-  .section h4 .time { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: auto; }
-  .bars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .section h4 .time { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: auto; font-variant-numeric: tabular-nums; }
+  .bars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
   @media (max-width: 560px) { .bars { grid-template-columns: repeat(2, 1fr); } }
-  .bar { background: var(--bg); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; min-height: 44px; display: flex; gap: 8px; align-items: center; font-weight: 700; font-size: 17px; cursor: pointer; flex-wrap: wrap; }
-  .bar:hover { border-color: var(--accent); }
-  .bar.now { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent); }
-  .bar .beat { opacity: .35; font-weight: 500; }
-  .bar .pickup { color: var(--muted); font-size: 12px; font-weight: 500; }
+  .bar { --sec: var(--accent); background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-height: 52px; display: flex; gap: 10px; align-items: center; font-weight: 800; font-size: 19px; letter-spacing: -.01em; cursor: pointer; flex-wrap: wrap; position: relative; overflow: hidden; transition: transform .12s, border-color .12s, box-shadow .12s; box-shadow: inset 3px 0 0 var(--sec); }
+  .bar:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .bar::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--p, 0) * 100%); background: color-mix(in srgb, var(--sec) 18%, transparent); pointer-events: none; }
+  .bar.now { border-color: var(--sec); box-shadow: inset 3px 0 0 var(--sec), 0 0 0 3px color-mix(in srgb, var(--sec) 30%, transparent), var(--accent-glow); }
+  .bar > span { position: relative; z-index: 1; }
+  .bar .beat { opacity: .3; font-weight: 500; }
+  .bar .pickup { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
   .warn { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 8px 12px; font-size: 14px; margin-top: 10px; }
-  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
   .tip { margin-top: 16px; font-size: 14px; color: var(--muted); }
   .tip a { color: var(--accent); text-decoration: none; font-weight: 600; }
   footer { margin-top: 40px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 18px; }
@@ -107,22 +155,12 @@
   .shapes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .shape { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 3px 8px; font-size: 14px; }
   .shape b { color: var(--accent); }
-
   .diagrams { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; color: var(--ink); }
   .cbox { flex: none; }
   .loopbtn { margin-left: 10px; }
   .loopbtn.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
   body.shared audio, body.shared .practice, body.shared #tap, body.shared #half, body.shared #double, body.shared #share { display: none; }
-
-  .library { max-width: 620px; margin: 22px auto 0; text-align: left; }
-  .library h3 { font-size: 15px; margin: 0 0 8px; } .library h3 small { color: var(--muted); font-weight: 400; margin-left: 8px; }
-  .library ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-  .library li { display: flex; gap: 8px; align-items: center; }
-  .lib-open { flex: 1; text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
-  .lib-open:hover { border-color: var(--accent); } .lib-open span { color: var(--muted); font-size: 13px; }
-  .iconbtn { border: 1px solid var(--line); background: transparent; border-radius: 8px; width: 34px; height: 34px; cursor: pointer; font-size: 15px; display: grid; place-items: center; }
   #edit.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
-  body.editing-hint .bar { cursor: text; }
   .editable { cursor: text; text-decoration: underline dotted; }
   .rename { font: inherit; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--accent); background: var(--bg); color: inherit; width: 120px; }
   .editor { grid-column: 1 / -1; background: var(--card); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--accent-glow); }
@@ -133,18 +171,26 @@
   .check { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
 
   /* Now-playing footer */
-  #nowplaying { position: fixed; left: 0; right: 0; bottom: 0; transform: translateY(110%); transition: transform .2s; background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(12px); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(7, 1fr); align-items: center; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); z-index: 40; box-shadow: 0 -10px 30px -18px rgba(0,0,0,.5); }
+  #nowplaying { position: fixed; left: 0; right: 0; bottom: 0; transform: translateY(110%); transition: transform .25s cubic-bezier(.2,.8,.2,1); background: color-mix(in srgb, var(--card) 86%, transparent); backdrop-filter: blur(18px) saturate(1.3); border-top: 1px solid var(--line); display: grid; grid-template-columns: 96px repeat(7, 1fr); align-items: center; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); z-index: 40; box-shadow: 0 -20px 50px -30px rgba(0,0,0,.6); }
   #nowplaying.on { transform: none; }
-  .np { text-align: center; font-weight: 700; font-size: clamp(16px, 3vw, 22px); color: var(--muted); overflow: hidden; white-space: nowrap; }
-  .np.prev { opacity: .55; }
-  .np.next { color: var(--ink); }
-  .np.now { font-size: clamp(30px, 7vw, 52px); color: var(--accent); position: relative; line-height: 1; }
-  .np.now .count { position: absolute; top: -4px; right: 6px; font-size: 13px; font-weight: 600; color: var(--muted); background: var(--bg); border-radius: 999px; padding: 2px 7px; }
+  .np { text-align: center; font-weight: 800; font-size: clamp(16px, 3vw, 24px); color: var(--muted); overflow: hidden; white-space: nowrap; letter-spacing: -.01em; }
+  .np.prev { opacity: .45; }
+  .np.next { color: var(--ink); } .np.next.n1 { font-size: clamp(20px, 3.6vw, 30px); }
+  .np.now { font-size: clamp(34px, 8vw, 60px); color: var(--accent); position: relative; line-height: 1; transform-origin: 50% 60%; }
+  .np.now.pulse { animation: pulse .32s ease-out; }
+  @keyframes pulse { 0% { transform: scale(1.14); text-shadow: 0 0 30px color-mix(in srgb, var(--accent) 70%, transparent); } 100% { transform: scale(1); } }
+  .np.now .count { position: absolute; top: -6px; right: 6px; font-size: 12px; font-weight: 700; color: var(--muted); background: var(--bg); border-radius: 999px; padding: 2px 7px; }
   .np .dim { opacity: .3; }
-  body.playing { padding-bottom: 96px; }
+  .ring { width: 84px; height: 84px; }
+  .ring .seg { fill: var(--line); stroke: var(--card); stroke-width: 2; transition: fill .15s; }
+  .ring .seg.on { fill: var(--accent); } .ring .seg.root { fill: var(--accent-2); }
+  .ring text { font-size: 7px; font-weight: 700; fill: var(--muted); text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+  .ring text.on { fill: var(--accent-ink); }
+  body.playing { padding-bottom: 110px; }
+  @media (max-width: 600px) { #nowplaying { grid-template-columns: repeat(7, 1fr); } .ring { display: none; } }
 
   @media print {
-    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how, .loopbtn, #edit, #nudge, .editor, .library { display: none !important; }
+    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how, .loopbtn, #edit, #nudge, .editor, .library, .sky, .sample { display: none !important; }
     body { background: #fff; color: #000; font-size: 12px; }
     .tiles { grid-template-columns: repeat(3, 1fr); }
     .tile, .bar { box-shadow: none; border-color: #bbb; break-inside: avoid; }
@@ -152,9 +198,9 @@
     .section { break-inside: avoid; }
   }
 </style>
-<link rel="manifest" href="./manifest.webmanifest">
 </head>
 <body>
+<div class="sky" aria-hidden="true"><i></i><i></i><i></i></div>
 <div class="wrap">
   <header>
     <a class="brand" href="./">
@@ -173,18 +219,30 @@
     <p>Drop a song and get its tempo, key, chords, sections and the capo that makes it easiest to play.</p>
     <div class="pill">Nothing leaves your browser</div>
     <div class="drop" id="drop" role="button" tabindex="0">
+      <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <div class="big">Drop an audio file here</div>
-      <div class="sub">or click to choose. MP3, M4A, WAV, FLAC and OGG, whatever your browser can play.</div>
+      <div class="sub">or click to choose. MP3, M4A, WAV, FLAC and OGG, whatever your browser can play. Several at once is fine.</div>
     </div>
     <div class="status" id="status" aria-live="polite"></div>
     <div class="library" id="library" hidden>
       <h3>Recent charts <small>kept in this browser, charts only, never audio</small></h3>
       <ul id="library-list"></ul>
     </div>
+    <div class="sample" aria-hidden="true">
+      <span class="cap">What you get</span>
+      <div class="stats"><span><b>92</b>BPM · 4/4</span><span><b>G</b>major</span><span><b>Capo 0</b></span><span><b>A B A B C B</b></span></div>
+      <div class="map"><i style="width:22%;background:var(--sA)"></i><i style="width:18%;background:var(--sB)"></i><i style="width:20%;background:var(--sA)"></i><i style="width:18%;background:var(--sB)"></i><i style="width:10%;background:var(--sC)"></i><i style="width:12%;background:var(--sB)"></i></div>
+      <div class="bars">
+        <div class="bar" style="--sec:var(--sA)"><span>G</span><span class="beat">·</span><span class="beat">·</span><span class="beat">·</span></div>
+        <div class="bar" style="--sec:var(--sA)"><span>D</span><span class="beat">·</span><span class="beat">·</span><span class="beat">·</span></div>
+        <div class="bar" style="--sec:var(--sA)"><span>Em</span><span class="beat">·</span><span class="beat">·</span><span class="beat">·</span></div>
+        <div class="bar" style="--sec:var(--sA);--p:.5" ><span>C</span><span class="beat">·</span><span>D</span><span class="beat">·</span></div>
+      </div>
+    </div>
     <div class="how">
       <div><b>How it works</b><span>Classic music analysis, no models to download: onset autocorrelation for tempo, chroma templates for chords, Krumhansl profiles for key, a self-similarity matrix for sections.</span></div>
       <div><b>What it gets right</b><span>Steady-tempo pop, rock, folk and worship songs in 4/4 or 3/4, with major, minor and seventh chords. Around three in four chords on a typical mix. Recordings tuned away from A440 are corrected.</span></div>
-      <div><b>What it gets wrong</b><span>Suspended, diminished and slash chords come back as the nearest triad or seventh. Rubato and tempo changes confuse the beat grid. Half or double tempo happens; the buttons fix it.</span></div>
+      <div><b>What it gets wrong</b><span>Suspended, diminished and slash chords come back as the nearest triad or seventh. Rubato and tempo changes confuse the beat grid. Half or double tempo happens; the buttons fix it. Edit mode fixes the rest.</span></div>
     </div>
   </section>
 
@@ -195,7 +253,7 @@
       <span class="muted" id="fmeta"></span>
     </div>
     <div class="tiles">
-      <div class="tile">
+      <div class="tile tempo">
         <div class="label">Tempo</div>
         <div class="value"><span id="bpm"></span><small>BPM</small></div>
         <div class="sub" id="bpm-sub"></div>
@@ -206,12 +264,12 @@
           <button class="btn ghost small" id="reset-bpm" type="button" hidden>Reset</button>
         </div>
       </div>
-      <div class="tile">
+      <div class="tile key">
         <div class="label">Key</div>
         <div class="value" id="key"></div>
         <div class="sub" id="key-sub"></div>
       </div>
-      <div class="tile">
+      <div class="tile guitar">
         <div class="label">Guitar</div>
         <div class="value" id="capo"></div>
         <div class="sub" id="capo-sub"></div>
@@ -256,7 +314,7 @@
           <button class="btn ghost small" id="nudge-right" type="button" title="Move bar lines one beat later">beat ▶</button>
         </span>
       </div>
-      <div class="timeline" id="timeline" title="Click to jump"></div>
+      <div class="timeline" id="timeline" title="Click to jump"><canvas id="wave"></canvas></div>
       <audio id="player" controls preload="metadata"></audio>
     </div>
 
@@ -281,7 +339,7 @@
   </footer>
 </div>
 <div id="nowplaying" aria-live="off"></div>
-<input type="file" id="picker" accept="audio/*,.mp3,.m4a,.wav,.flac,.ogg,.aac,.aiff" class="sr" aria-hidden="true">
+<input type="file" id="picker" accept="audio/*,.mp3,.m4a,.wav,.flac,.ogg,.aac,.aiff" class="sr" aria-hidden="true" multiple>
 <script type="module" src="./app.js?v=dev"></script>
 </body>
 </html>

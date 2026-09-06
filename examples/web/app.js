@@ -3,6 +3,7 @@
 
 import { diagram, ukeDiagram } from "./chords-guitar.js?v=dev";
 import * as library from "./library.js?v=dev";
+import { peaksOf, draw as drawWave } from "./waveform.js?v=dev";
 import { midiBytes, chordPro, shareLink, readShareLink } from "./export.js?v=dev";
 
 const $ = (id) => document.getElementById(id);
@@ -94,7 +95,11 @@ $("another").addEventListener("click", () => { showHome(); });
 window.chordmapOpen = openFile;
 picker.multiple = true;
 
-function setStatus(text, err) { const s = $("status"); s.textContent = text; s.classList.toggle("err", !!err); }
+function setStatus(text, err, busy) {
+  const s = $("status"); s.classList.toggle("err", !!err);
+  s.innerHTML = (busy ? '<span class="listen" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>' : "") + "<span></span>";
+  s.lastChild.textContent = text;
+}
 function showHome() {
   renderLibrary();
   $("results").classList.remove("active");
@@ -105,11 +110,11 @@ function showHome() {
 
 async function openFile(file) {
   state.file = file; state.bpmHint = null; state.taps = []; state.transpose = 0; state.loop = null; state.editing = false;
-  state.fileKey = library.fileKey(file); state.shared = false; document.body.classList.remove("shared");
+  state.fileKey = library.fileKey(file); state.shared = false; state.peaks = null; document.body.classList.remove("shared");
   $("home").style.display = "";
   $("results").classList.remove("active");
   const q = state.queue.length ? " (" + state.queue[0] + " of " + state.queue[1] + ")" : "";
-  setStatus("Decoding " + file.name + q + "…");
+  setStatus("Decoding " + file.name + q + "…", false, true);
   try {
     const buf = await file.arrayBuffer();
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -122,6 +127,7 @@ async function openFile(file) {
       for (let i = 0; i < n; i++) mono[i] += d[i] / ch;
     }
     state.samples = mono; state.sampleRate = audio.sampleRate;
+    state.peaks = peaksOf(mono);
     if (state.url) URL.revokeObjectURL(state.url);
     state.url = URL.createObjectURL(file);
     $("player").src = state.url;
@@ -132,7 +138,7 @@ async function openFile(file) {
 }
 
 async function analyze() {
-  setStatus("Listening for the beat, the key and the chords…");
+  setStatus("Listening for the beat, the key and the chords…", false, true);
   const t0 = performance.now();
   const options = {};
   if (state.bpmHint) options.bpmHint = state.bpmHint;
@@ -261,19 +267,16 @@ function render() {
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function color(label) { return "var(" + COLORS[(label.charCodeAt(0) - 65) % COLORS.length] + ")"; }
 
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function colorOf(label) { return cssVar(COLORS[(label.charCodeAt(0) - 65) % COLORS.length]); }
 function renderTimeline() {
-  const a = state.analysis, tl = $("timeline"); tl.innerHTML = "";
-  a.sections.forEach((s) => {
-    const el = document.createElement("div"); el.className = "sec";
-    el.style.width = ((s.end - s.start) / a.duration * 100) + "%";
-    el.style.background = color(s.label);
-    el.textContent = s.label;
-    el.title = s.label + " · " + s.guess + " · " + fmtTime(s.start);
-    tl.appendChild(el);
-  });
-  const head = document.createElement("div"); head.className = "head"; head.id = "head"; tl.appendChild(head);
+  const a = state.analysis; if (!a) return;
+  drawWave($("wave"), { peaks: state.peaks, analysis: a, time: $("player").currentTime || 0, colorOf, ink: cssVar("--ink"), muted: cssVar("--muted") });
 }
+new ResizeObserver(() => renderTimeline()).observe($("timeline"));
+$("theme").addEventListener("click", () => setTimeout(() => { renderTimeline(); }, 50));
 $("timeline").addEventListener("click", (e) => {
+  if (state.shared) return;
   const r = $("timeline").getBoundingClientRect();
   const p = $("player"); p.currentTime = (e.clientX - r.left) / r.width * state.analysis.duration; p.play();
 });
@@ -284,7 +287,7 @@ function renderChart() {
     const endBar = si + 1 < a.sections.length ? a.sections[si + 1].bar : a.bars.length;
     const sec = document.createElement("div"); sec.className = "section";
     const h = document.createElement("h4");
-    h.innerHTML = `<span class="dot" style="background:${color(s.label)}"></span>${esc(s.label)} <span class="guess">${esc(s.guess)}</span><span class="time">${fmtTime(s.start)} – ${fmtTime(s.end)}</span>`;
+    h.innerHTML = `<span class="dot" style="background:${color(s.label)}">${esc(s.label)}</span><span class="guess">${esc(s.guess)}</span><span class="time">${fmtTime(s.start)} – ${fmtTime(s.end)}</span>`;
     if (state.editing) {
       const g = h.querySelector(".guess"); g.classList.add("editable"); g.title = "Click to rename";
       g.addEventListener("click", () => {
@@ -309,7 +312,7 @@ function renderChart() {
     const from = si === 0 ? 0 : s.bar;
     for (let i = from; i < endBar; i++) {
       const bar = a.bars[i];
-      const el = document.createElement("div"); el.className = "bar"; el.dataset.start = bar.start; el.dataset.end = bar.end; el.dataset.i = i;
+      const el = document.createElement("div"); el.className = "bar"; el.dataset.start = bar.start; el.dataset.end = bar.end; el.dataset.i = i; el.style.setProperty("--sec", color(s.label));
       let prev = null;
       bar.beats.forEach((b) => {
         const span = document.createElement("span");
@@ -334,11 +337,12 @@ let lastBar = null;
 function tick() {
   if (!state.analysis) return;
   const t = $("player").currentTime;
-  $("head").style.left = (t / state.analysis.duration * 100) + "%";
+  renderTimeline();
   const bars = $("chart").querySelectorAll(".bar");
   let now = null;
   for (const b of bars) { if (t >= +b.dataset.start && t < +b.dataset.end) { now = b; break; } }
-  if (now !== lastBar) { if (lastBar) lastBar.classList.remove("now"); if (now) now.classList.add("now"); lastBar = now; }
+  if (now !== lastBar) { if (lastBar) { lastBar.classList.remove("now"); lastBar.style.removeProperty("--p"); } if (now) now.classList.add("now"); lastBar = now; }
+  if (now) now.style.setProperty("--p", ((t - +now.dataset.start) / (+now.dataset.end - +now.dataset.start)).toFixed(3));
   renderNowPlaying(t);
 }
 
@@ -460,7 +464,20 @@ $("speed").addEventListener("change", (e) => { const p = $("player"); p.preserve
 
 // Persistent footer while playing: the three chords just played, the one
 // sounding now with a countdown, and the next three.
-let lastNowKey = "";
+let lastNowKey = "", lastBeat = -1;
+const TONES = { "": [0, 4, 7], "m": [0, 3, 7], "7": [0, 4, 7, 10], "maj7": [0, 4, 7, 11], "m7": [0, 3, 7, 10] };
+function ringSvg() {
+  // Twelve pitch classes around a ring; the chord's notes light up.
+  let s = '<svg class="ring" viewBox="0 0 100 100" aria-hidden="true">';
+  for (let k = 0; k < 12; k++) {
+    const a0 = (k - 3) / 12 * Math.PI * 2 - Math.PI / 12, a1 = a0 + Math.PI * 2 / 12;
+    const r0 = 28, r1 = 46, cx = 50, cy = 50;
+    const p = (r, a) => `${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`;
+    s += `<path class="seg" data-pc="${k}" d="M${p(r0, a0)} L${p(r1, a0)} A${r1},${r1} 0 0 1 ${p(r1, a1)} L${p(r0, a1)} A${r0},${r0} 0 0 0 ${p(r0, a0)} Z"/>`;
+    const am = (a0 + a1) / 2; s += `<text data-pc="${k}" x="${(cx + 37 * Math.cos(am)).toFixed(2)}" y="${(cy + 37 * Math.sin(am)).toFixed(2)}">${SHARP[k].replace("#", "♯")}</text>`;
+  }
+  return s + "</svg>";
+}
 function renderNowPlaying(t) {
   const a = state.analysis, foot = $("nowplaying");
   const playing = !$("player").paused;
@@ -470,16 +487,30 @@ function renderNowPlaying(t) {
   let i = spans.findIndex((c) => t >= c.start && t < c.end);
   if (i < 0) i = t < spans[0].start ? -1 : spans.length - 1;
   const cur = spans[i];
-  const beatsLeft = cur ? Math.max(0, Math.ceil((cur.end - t) / (60 / a.tempo.bpm))) : 0;
-  const key = i + ":" + beatsLeft + ":" + shift();
-  if (key === lastNowKey) return;
-  lastNowKey = key;
-  const cell = (c, cls) => `<div class="np ${cls}">${c ? esc(display(c.label)) : "<span class='dim'>·</span>"}</div>`;
-  let html = "";
-  for (let k = 3; k >= 1; k--) html += cell(spans[i - k], "prev");
-  html += `<div class="np now">${cur ? esc(display(cur.label)) : "…"}<span class="count">${cur ? beatsLeft : ""}</span></div>`;
-  for (let k = 1; k <= 3; k++) html += cell(spans[i + k], "next");
-  foot.innerHTML = html;
+  const spb = 60 / a.tempo.bpm;
+  const beatsLeft = cur ? Math.max(0, Math.ceil((cur.end - t) / spb)) : 0;
+  // A pulse on every beat.
+  let bi = -1; for (let k = 0; k < a.beats.length; k++) { if (a.beats[k] <= t) bi = k; else break; }
+  const key = i + ":" + beatsLeft + ":" + shift() + ":" + state.show;
+  if (key !== lastNowKey) {
+    lastNowKey = key;
+    const cell = (c, cls) => `<div class="np ${cls}">${c ? esc(display(c.label)) : "<span class='dim'>·</span>"}</div>`;
+    let html = ringSvg();
+    for (let k = 3; k >= 1; k--) html += cell(spans[i - k], "prev");
+    html += `<div class="np now">${cur ? esc(display(cur.label)) : "…"}<span class="count">${cur ? beatsLeft : ""}</span></div>`;
+    for (let k = 1; k <= 3; k++) html += cell(spans[i + k], "next n" + k);
+    foot.innerHTML = html;
+    const c = cur ? parseLabel(cur.label) : null;
+    if (c) {
+      const tones = (TONES[c.suffix] || TONES[""]).map((iv) => (c.pc + iv + shift() + 120) % 12);
+      foot.querySelectorAll(".ring [data-pc]").forEach((el) => { const pc = +el.dataset.pc; el.classList.toggle("on", tones.includes(pc)); el.classList.toggle("root", pc === tones[0]); });
+    }
+  }
+  if (bi !== lastBeat) {
+    lastBeat = bi;
+    const now = foot.querySelector(".np.now");
+    if (now) { now.classList.remove("pulse"); void now.offsetWidth; now.classList.add("pulse"); }
+  }
 }
 document.addEventListener("keydown", (e) => {
   if (e.target.matches("input, select, textarea, button")) return;

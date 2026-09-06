@@ -20,3 +20,8 @@
   sections, bar-line nudge by one beat, recent-charts library in IndexedDB
   with corrections restored for the same file, multi-file drop, ukulele
   diagrams.
+- Web app design pass: waveform timeline tinted by section with beat ticks
+  and playhead, chart bars that sweep as they play, now-playing footer with
+  a beat pulse and a pitch-class ring, ambient background, gradient
+  headline, listening animation, sample chart on the landing page, both
+  themes, reduced-motion respected. Still no external fonts or scripts.

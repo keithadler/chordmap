@@ -31,8 +31,8 @@ jobs:
       - name: Assemble site
         run: |
           mkdir -p site/pkg
-          cp examples/web/index.html examples/web/app.js examples/web/worker.js examples/web/chords-guitar.js examples/web/export.js examples/web/library.js examples/web/sw.js examples/web/manifest.webmanifest site/
-          sed -i "s/?v=dev/?v=${GITHUB_SHA::8}/g" site/index.html site/app.js site/worker.js site/chords-guitar.js site/export.js site/library.js
+          cp examples/web/index.html examples/web/app.js examples/web/worker.js examples/web/chords-guitar.js examples/web/export.js examples/web/library.js examples/web/waveform.js examples/web/sw.js examples/web/manifest.webmanifest site/
+          sed -i "s/?v=dev/?v=${GITHUB_SHA::8}/g" site/index.html site/app.js site/worker.js site/chords-guitar.js site/export.js site/library.js site/waveform.js
           sed -i "s/__VERSION__/${GITHUB_SHA::8}/g" site/sw.js
           cp pkg/chordmap.js pkg/chordmap_bg.wasm site/pkg/
           touch site/.nojekyll
