@@ -4,6 +4,7 @@
 import { diagram, ukeDiagram } from "./chords-guitar.js?v=dev";
 import * as library from "./library.js?v=dev";
 import { peaksOf, draw as drawWave } from "./waveform.js?v=dev";
+import { openVisualizer } from "./visualizer.js?v=dev";
 import { midiBytes, chordPro, shareLink, readShareLink } from "./export.js?v=dev";
 
 const $ = (id) => document.getElementById(id);
@@ -513,7 +514,7 @@ function renderNowPlaying(t) {
   }
 }
 document.addEventListener("keydown", (e) => {
-  if (e.target.matches("input, select, textarea, button")) return;
+  if (viz || e.target.matches("input, select, textarea, button")) return;
   const p = $("player");
   if (!state.analysis || state.shared) return;
   if (e.code === "Space") { e.preventDefault(); p.paused ? p.play() : p.pause(); }
@@ -582,6 +583,14 @@ function base() { return ((state.file ? state.file.name : state.sharedTitle || "
 $("copy").addEventListener("click", async () => { try { await navigator.clipboard.writeText(sheetText()); $("copy").textContent = "Copied"; setTimeout(() => ($("copy").textContent = "Copy chord sheet"), 1500); } catch (e) { download(base() + " chords.txt", sheetText(), "text/plain"); } });
 $("dl-sheet").addEventListener("click", () => download(base() + " chords.txt", sheetText(), "text/plain"));
 $("print").addEventListener("click", () => window.print());
+let viz = null;
+$("visualize").addEventListener("click", () => {
+  if (viz) return;
+  // Aurora is for the room, so it names what is heard, not the capo shape.
+  const displaySounding = (l) => { const c = parseLabel(l); if (!c) return "N.C."; const pc = (c.pc + state.transpose + 120) % 12; return spell(pc, (shownTonicBase() + state.transpose + 120) % 12, state.analysis.key.minor) + c.suffix; };
+  viz = openVisualizer({ analysis: state.analysis, player: $("player"), display, displaySounding, transpose: () => state.transpose, colorOf, parseLabel, onClose: () => { viz = null; } });
+  if (!state.shared && $("player").paused) $("player").play().catch(() => {});
+});
 $("player").addEventListener("play", () => document.body.classList.add("playing"));
 $("player").addEventListener("pause", () => document.body.classList.remove("playing"));
 $("dl-midi").addEventListener("click", () => download(base() + " chords.mid", midiBytes(state.analysis), "audio/midi"));

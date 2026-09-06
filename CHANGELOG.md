@@ -25,3 +25,6 @@
   a beat pulse and a pitch-class ring, ambient background, gradient
   headline, listening animation, sample chart on the landing page, both
   themes, reduced-motion respected. Still no external fonts or scripts.
+- Visualize mode: Stage, Flow and Aurora, full screen, keyboard driven
+  (1 2 3, space, arrows, F, Esc), fed by the chart and an AnalyserNode on
+  the playing audio.

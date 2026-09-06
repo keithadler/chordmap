@@ -89,3 +89,11 @@ with the right amount of trust.
   re-exported or renamed file starts fresh.
 - The library lives in this browser's IndexedDB: not synced, cleared when
   site data is cleared, and private windows lose it on close.
+
+## Visualize
+- Aurora reads the audio through an AnalyserNode, so it needs the song
+  playing in this page; a saved or shared chart without audio shows Stage
+  and Flow only with the pitch bloom flat.
+- The pitch bloom is a rough live chroma from a 4096-point FFT, not the
+  engine's analysis; it reacts to whatever is loudest, bass included.
+- Fullscreen needs a click or key press first in most browsers.
