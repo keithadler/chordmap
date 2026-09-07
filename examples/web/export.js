@@ -43,7 +43,31 @@ export function midiBytes(a) {
   return new Uint8Array([...str("MThd"), ...u32(6), ...u16(0), ...u16(1), ...u16(ppq), ...str("MTrk"), ...u32(track.length), ...track]);
 }
 
-/** ChordPro text with sections as comments and one line per four bars. */
+/** Words that start inside a bar, joined. */
+function barLyric(a, bar) {
+  return (a.lyrics || []).filter((w) => w.start >= bar.start && w.start < bar.end).map((w) => w.text).join(" ");
+}
+
+/** Chords over lyrics, four bars per line, plain text. Falls back to chords only. */
+export function lyricSheet(a, title, display) {
+  let out = `${title}\n${a.tempo.bpm} BPM, ${a.meter}, ${a.key.name}` + (a.guitar.capo ? `, capo ${a.guitar.capo}` : "") + "\n";
+  a.sections.forEach((s, si) => {
+    const endBar = si + 1 < a.sections.length ? a.sections[si + 1].bar : a.bars.length;
+    out += `\n[${s.label} ${s.guess}]\n`;
+    const from = si === 0 ? 0 : s.bar;
+    for (let i = from; i < endBar; i += 4) {
+      const row = a.bars.slice(i, Math.min(endBar, i + 4));
+      const cells = row.map((b) => { let prev = null, c = ""; for (const x of b.beats) { if (x !== prev) { c += (c ? " " : "") + display(x); prev = x; } } return c; });
+      const lyr = row.map((b) => barLyric(a, b));
+      const w = cells.map((c, k) => Math.max(c.length, lyr[k].length, 6) + 2);
+      out += "| " + cells.map((c, k) => c.padEnd(w[k])).join("| ") + "|\n";
+      if (lyr.some(Boolean)) out += "  " + lyr.map((l, k) => l.padEnd(w[k])).join("  ") + "\n";
+    }
+  });
+  return out;
+}
+
+/** ChordPro text with sections as comments and one line per four bars; chords sit inside the lyrics when there are any. */
 export function chordPro(a, title, display) {
   let out = `{title: ${title}}\n{key: ${a.key.name}}\n{tempo: ${a.tempo.bpm}}\n{time: ${a.meter}}\n`;
   if (a.guitar.capo) out += `{capo: ${a.guitar.capo}}\n`;
@@ -53,12 +77,28 @@ export function chordPro(a, title, display) {
     let line = "";
     const from = si === 0 ? 0 : s.bar;
     for (let i = from; i < endBar; i++) {
-      let prev = null, cell = "";
-      for (const b of a.bars[i].beats) { if (b !== prev) { cell += "[" + display(b) + "] "; prev = b; } else cell += ". "; }
-      line += "| " + cell;
-      if ((i - from + 1) % 4 === 0) { out += line + "|\n"; line = ""; }
+      const bar = a.bars[i];
+      const words = (a.lyrics || []).filter((w) => w.start >= bar.start && w.start < bar.end);
+      let cell = "";
+      if (words.length) {
+        // Each chord goes in front of the first word sung after its beat.
+        const spb = (bar.end - bar.start) / bar.beats.length;
+        let prev = null, wi = 0;
+        for (let k = 0; k < bar.beats.length; k++) {
+          const b = bar.beats[k], t = bar.start + k * spb;
+          while (wi < words.length && words[wi].start < t - spb / 2) cell += words[wi++].text + " ";
+          if (b !== prev) { cell += "[" + display(b) + "]"; prev = b; }
+        }
+        while (wi < words.length) cell += words[wi++].text + " ";
+        line += cell.trim() + " ";
+      } else {
+        let prev = null;
+        for (const b of bar.beats) { if (b !== prev) { cell += "[" + display(b) + "] "; prev = b; } else cell += ". "; }
+        line += "| " + cell;
+      }
+      if ((i - from + 1) % 4 === 0) { out += line.trim() + (words.length ? "" : " |") + "\n"; line = ""; }
     }
-    if (line) out += line + "|\n";
+    if (line) out += line.trim() + "\n";
   });
   return out;
 }

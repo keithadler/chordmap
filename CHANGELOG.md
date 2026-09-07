@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Lyrics: Whisper on the separated vocals, on device, words under the
+  chords per bar, a follow-along line in the footer, chords placed inside
+  the lyric line in ChordPro and the text sheet, per-bar correction in edit
+  mode, kept with the chart and the share link.
+
 ## Mac app 1.0.0 (2026-09-06)
 
 Chordmap for Mac, in `mac/`: the engine as a macOS app that hears what the Mac plays through a Core Audio tap (or an input device) and charts it live every two seconds, with the capo picker, bars by section, the chord sheet, and a history of listens. Swift over a small C bridge to the crate; Apple Silicon build, signed by its author.

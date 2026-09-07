@@ -15,6 +15,10 @@ chordmap runs entirely on your device.
   and caches them in your browser. The model then runs on your device, on
   the GPU when the browser allows it. Your audio never leaves the device;
   only the model files come in, and nothing is sent back.
+- Lyrics work the same way: "Transcribe lyrics on this device" fetches the
+  Whisper model files and the transformers.js library from the same
+  publisher, then runs on your device. Words are kept with the chart in
+  your browser and in any share link you make; the audio stays put.
 - "Share chart" builds a link with the chart (tempo, key, chords, sections,
   file name) compressed into the URL itself. The audio is not in it and
   nothing is stored anywhere; whoever gets the link gets only the chart.

@@ -7,6 +7,8 @@ import { peaksOf, draw as drawWave } from "./waveform.js?v=dev";
 import { openVisualizer } from "./visualizer.js?v=dev";
 import { separate, MODELS, MODEL_RATE, supportsWebGPU } from "./stems.js?v=dev";
 import { encodeWav, mixStems, tame } from "./mix.js?v=dev";
+import { transcribe, to16k, wordsBetween, MODEL as LYRICS_MODEL } from "./lyrics.js?v=dev";
+import { lyricSheet } from "./export.js?v=dev";
 import { midiBytes, chordPro, shareLink, readShareLink } from "./export.js?v=dev";
 
 const $ = (id) => document.getElementById(id);
@@ -282,6 +284,7 @@ function render() {
   ts.value = state.transpose;
   [...$("show").children].forEach((b) => b.classList.toggle("on", b.dataset.v === state.show));
   $("edit").classList.toggle("on", state.editing); $("edit").textContent = state.editing ? "Done editing" : "Edit chart"; $("nudge").hidden = !state.editing;
+  renderLyricsPanel();
   renderTimeline();
   renderChart();
   const w = $("warnings"); w.innerHTML = "";
@@ -343,8 +346,14 @@ function renderChart() {
         el.appendChild(span); prev = b;
       });
       if (bar.beats.length < (a.bars[1] ? a.bars[1].beats.length : 4)) { const p = document.createElement("span"); p.className = "pickup"; p.textContent = "pickup"; el.appendChild(p); }
+      if (a.lyrics && a.lyrics.length) {
+        const lyr = wordsBetween(a.lyrics, bar.start, bar.end).map((w) => w.text).join(" ");
+        const l = document.createElement("span"); l.className = "lyric" + (lyr ? "" : " empty"); l.textContent = lyr || "·"; l.title = state.editing ? "Click to edit the words sung in this bar" : "Sung in this bar";
+        if (state.editing) l.addEventListener("click", (ev) => { ev.stopPropagation(); editBarLyric(l, i); });
+        el.appendChild(l);
+      }
       el.addEventListener("click", (ev) => {
-        if (state.editing) { openChordEditor(el, i, ev); return; }
+        if (state.editing) { if (ev.target.classList.contains("lyric")) return; openChordEditor(el, i, ev); return; }
         if (state.shared) return;
         const p = $("player"); p.currentTime = bar.start; p.play();
       });
@@ -375,7 +384,7 @@ function beatOffset(barIndex) { let n = 0; for (let i = 0; i < barIndex; i++) n 
 function openChordEditor(barEl, barIndex, ev) {
   closeEditor();
   const a = state.analysis, bar = a.bars[barIndex];
-  const cells = [...barEl.children].filter((c) => !c.classList.contains("pickup"));
+  const cells = [...barEl.children].filter((c) => !c.classList.contains("pickup") && !c.classList.contains("lyric"));
   let beat = cells.findIndex((c) => c === ev.target || c.contains(ev.target)); if (beat < 0) beat = 0;
   const cur = parseLabel(bar.beats[beat]) || { pc: 0, suffix: "" };
   const pop = document.createElement("div"); pop.className = "editor"; pop.id = "editor";
@@ -442,7 +451,7 @@ function touched() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => library.save(state.fileKey, state.file ? state.file.name : state.sharedTitle, state.analysis).then(renderLibrary), 400);
 }
-$("edit").addEventListener("click", () => { state.editing = !state.editing; $("edit").classList.toggle("on", state.editing); $("edit").textContent = state.editing ? "Done editing" : "Edit chart"; $("nudge").hidden = !state.editing; closeEditor(); renderChart(); });
+$("edit").addEventListener("click", () => { state.editing = !state.editing; document.body.classList.toggle("editing", state.editing); $("edit").classList.toggle("on", state.editing); $("edit").textContent = state.editing ? "Done editing" : "Edit chart"; $("nudge").hidden = !state.editing; closeEditor(); renderChart(); });
 $("nudge-left").addEventListener("click", () => nudgeBars(-1));
 $("nudge-right").addEventListener("click", () => nudgeBars(1));
 $("instrument").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; state.instrument = b.dataset.v; render(); });
@@ -509,6 +518,7 @@ function renderMixer() {
     ? "The AI runs on this device. Your audio is never uploaded."
     : "The AI runs on this device, in your browser. Nothing is uploaded: the only download is the model itself (KUIELab MDX-Net, about " + MODELS.vocals.mb + " MB per stem, cached after) and the onnxruntime engine (14 MB). A four-minute song takes a few minutes on CPU" + (supportsWebGPU() ? ", well under a minute with WebGPU on this machine." : ".");
   $("rechart").hidden = !have.includes("vocals");
+  renderLyricsPanel();
 }
 let mixTimer = null;
 function scheduleMix() { clearTimeout(mixTimer); mixTimer = setTimeout(applyMix, 250); }
@@ -627,6 +637,64 @@ $("rechart").addEventListener("click", async () => {
   touched();
 });
 
+// ---------- lyrics: Whisper on the vocal stem, on this device
+function renderLyricsPanel() {
+  const a = state.analysis; if (!a) return;
+  const has = a.lyrics && a.lyrics.length;
+  $("lyrics-note").textContent = has
+    ? a.lyrics.length + " words. A draft from the model: switch on Edit chart and click any bar's words to fix them."
+    : "Whisper runs on this device, in your browser. Nothing is uploaded: the model is a " + LYRICS_MODEL.mb + " MB download the first time, cached after. " + (stemsAvailable().vocals ? "It will listen to the separated vocals." : "Separate the vocals first for much better words; otherwise it listens to the whole mix.");
+  $("transcribe").textContent = has ? "Transcribe again on this device" : "Transcribe lyrics on this device";
+  $("clear-lyrics").hidden = !has;
+  $("lyrics").hidden = state.shared && !has;
+}
+$("transcribe").addEventListener("click", async () => {
+  if (!state.stereo) return;
+  const btn = $("transcribe"); btn.disabled = true;
+  try {
+    const stems = stemsAvailable();
+    const [l, r] = stems.vocals ? stems.vocals : state.stereo;
+    setLyricsStatus("Preparing audio…");
+    const audio = await to16k(l, r, state.sampleRate);
+    const t0 = performance.now();
+    showProgress(["lyrics"]); $("sep-title").textContent = "Transcribing on this device";
+    const words = await transcribe(audio, (ev) => {
+      const pct = Math.round(ev.p * 100);
+      updateProgress(["lyrics"], { stage: ev.stage, stem: "lyrics", p: ev.p }, pct, null);
+      $("sep-title").textContent = ev.stage === "download" ? "Downloading the Whisper model" : "Listening for the words";
+      setLyricsStatus((ev.stage === "download" ? "Downloading the model " : "Transcribing on this device ") + pct + "%");
+    });
+    hideProgress();
+    state.analysis.lyrics = words;
+    touched();
+    setLyricsStatus(words.length ? "Heard " + words.length + " words in " + Math.round((performance.now() - t0) / 1000) + " s on this device." : "No words heard. Try separating the vocals first.");
+    render();
+  } catch (err) { hideProgress(); setLyricsStatus("Transcription failed: " + (err.message || err)); }
+  btn.disabled = false;
+});
+$("clear-lyrics").addEventListener("click", () => { delete state.analysis.lyrics; touched(); setLyricsStatus(""); render(); });
+function setLyricsStatus(t) { $("lyrics-status").textContent = t; }
+function editBarLyric(el, barIndex) {
+  const a = state.analysis, bar = a.bars[barIndex];
+  const words = wordsBetween(a.lyrics, bar.start, bar.end);
+  const inp = document.createElement("input"); inp.className = "rename lyric-edit"; inp.value = words.map((w) => w.text).join(" ");
+  el.replaceWith(inp); inp.focus(); inp.select();
+  let done = false;
+  const finish = () => {
+    if (done) return; done = true;
+    const text = inp.value.trim();
+    // Replace this bar's words, spread evenly across the bar.
+    const rest = a.lyrics.filter((w) => !(w.start >= bar.start && w.start < bar.end));
+    const parts = text ? text.split(/\s+/) : [];
+    const step = (bar.end - bar.start) / Math.max(1, parts.length);
+    const fresh = parts.map((p, k) => ({ text: p, start: +(bar.start + k * step).toFixed(2), end: +(bar.start + (k + 1) * step - 0.05).toFixed(2) }));
+    a.lyrics = rest.concat(fresh).sort((x, y) => x.start - y.start);
+    touched(); renderChart();
+  };
+  inp.addEventListener("blur", finish); inp.addEventListener("change", finish);
+  inp.addEventListener("keydown", (k) => { if (k.key === "Enter") finish(); if (k.key === "Escape") { inp.value = words.map((w) => w.text).join(" "); finish(); } });
+}
+
 // ---------- install as an app
 let installEvent = null;
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; $("install").hidden = false; });
@@ -689,6 +757,7 @@ function renderNowPlaying(t) {
     html += `<div class="np now">${cur ? esc(display(cur.label)) : "…"}<span class="count">${cur ? beatsLeft : ""}</span></div>`;
     for (let k = 1; k <= 3; k++) html += cell(spans[i + k], "next n" + k);
     foot.innerHTML = html;
+    if (a.lyrics && a.lyrics.length) { const l = document.createElement("div"); l.className = "np-lyric"; l.id = "np-lyric"; foot.appendChild(l); }
     const c = cur ? parseLabel(cur.label) : null;
     if (c) {
       const tones = (TONES[c.suffix] || TONES[""]).map((iv) => (c.pc + iv + shift() + 120) % 12);
@@ -699,6 +768,17 @@ function renderNowPlaying(t) {
     lastBeat = bi;
     const now = foot.querySelector(".np.now");
     if (now) { now.classList.remove("pulse"); void now.offsetWidth; now.classList.add("pulse"); }
+  }
+  const lyricEl = foot.querySelector("#np-lyric");
+  if (lyricEl && a.lyrics && a.lyrics.length) {
+    // The words of the current bar, the one being sung in bold, and the next bar dimmed.
+    const bars = a.bars; let b = bars.findIndex((x) => t >= x.start && t < x.end); if (b < 0) b = 0;
+    const key = "L" + b + ":" + (a.lyrics.findIndex((w) => w.start <= t && w.end > t));
+    if (lyricEl.dataset.key !== key) {
+      lyricEl.dataset.key = key;
+      const cur = wordsBetween(a.lyrics, bars[b].start, bars[b].end), nxt = bars[b + 1] ? wordsBetween(a.lyrics, bars[b + 1].start, bars[b + 1].end) : [];
+      lyricEl.innerHTML = cur.map((w) => `<span class="${w.start <= t && w.end > t ? "on" : w.end <= t ? "sung" : ""}">${esc(w.text)}</span>`).join(" ") + (nxt.length ? ` <span class="dim">${esc(nxt.map((w) => w.text).join(" "))}</span>` : "");
+    }
   }
 }
 document.addEventListener("keydown", (e) => {
@@ -769,7 +849,7 @@ function download(name, data, type) {
 }
 function base() { return ((state.file ? state.file.name : state.sharedTitle || "song").replace(/\.[^.]+$/, "") || "song"); }
 $("copy").addEventListener("click", async () => { try { await navigator.clipboard.writeText(sheetText()); $("copy").textContent = "Copied"; setTimeout(() => ($("copy").textContent = "Copy chord sheet"), 1500); } catch (e) { download(base() + " chords.txt", sheetText(), "text/plain"); } });
-$("dl-sheet").addEventListener("click", () => download(base() + " chords.txt", sheetText(), "text/plain"));
+$("dl-sheet").addEventListener("click", () => download(base() + " chords.txt", state.analysis.lyrics && state.analysis.lyrics.length ? lyricSheet(state.analysis, base(), display) : sheetText(), "text/plain"));
 $("print").addEventListener("click", () => window.print());
 let viz = null, liveViz = null;
 // Aurora is for the room, so it names what is heard, not the capo shape.

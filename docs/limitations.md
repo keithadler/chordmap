@@ -122,3 +122,13 @@ with the right amount of trust.
 - Chrome, Edge and Android offer the install prompt; Safari on iPhone and
   iPad needs Share then Add to Home Screen; Safari on a Mac uses File then
   Add to Dock. Installed or not, everything runs the same.
+
+## Lyrics
+- Whisper base.en is a small English model. Sung words on a clean vocal
+  stem come out mostly right; backing vocals, screamed or heavily
+  processed vocals, and other languages come out wrong. Treat it as a
+  draft and fix bars in edit mode.
+- Words are attached to bars by when they start, so a word sung across a
+  bar line sits in the bar it began in.
+- The model is a 76 MB download the first time. On WebGPU a four-minute
+  song takes about a minute; on CPU WebAssembly several minutes.
