@@ -15,9 +15,19 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== location.origin) return;
   // The neural runtime and models are big and cached by the page itself.
-  if (url.pathname.includes("/vendor/ort/") || url.pathname.includes("/local/")) return;
+  if (url.pathname.includes("/vendor/") || url.pathname.includes("/local/")) return;
+  // The page itself is fetched fresh whenever there is a signal, so a new
+  // deploy shows up on the very next visit; the cache is only for offline.
+  const isPage = e.request.mode === "navigate" || url.pathname.endsWith("/") || url.pathname.endsWith("/index.html");
+  if (isPage) {
+    e.respondWith(fetch(e.request).then((res) => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put("./index.html", copy)); }
+      return res;
+    }).catch(() => caches.match("./index.html")));
+    return;
+  }
   e.respondWith(caches.match(e.request, { ignoreSearch: false }).then((hit) => hit || fetch(e.request).then((res) => {
     if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
     return res;
-  }).catch(() => caches.match("./index.html"))));
+  })));
 });

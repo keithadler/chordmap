@@ -40,7 +40,17 @@ readShareLink().then((shared) => {
 
 // ---------- offline (the app shell is cached after the first visit)
 if ("serviceWorker" in navigator && location.protocol === "https:") {
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+  // When a newer build takes over underneath an open page, say so rather
+  // than reloading under someone mid-song.
+  let hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController) { hadController = true; return; }
+    const bar = document.createElement("div"); bar.className = "update-bar";
+    bar.innerHTML = `<span>A newer chordmap is ready.</span><button type="button" class="btn small">Reload</button>`;
+    bar.querySelector("button").addEventListener("click", () => location.reload());
+    document.body.appendChild(bar);
+  });
+  navigator.serviceWorker.register("./sw.js").then((r) => { try { r.update(); } catch (e) { /* offline */ } }).catch(() => {});
 }
 
 // ---------- theme

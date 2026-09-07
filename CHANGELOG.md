@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The page is fetched fresh on every visit with a signal and a bar offers
+  a reload when a newer build takes over, so a deploy no longer needs two
+  loads to show up.
 - Lyrics: Whisper on the separated vocals, on device, words under the
   chords per bar, a follow-along line in the footer, chords placed inside
   the lyric line in ChordPro and the text sheet, per-bar correction in edit
