@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Lyrics in the visualizers: Stage, Flow and Aurora draw the bar being
+  sung with the current word lit and the next bar dimmed, full screen and
+  in the live panel.
+- Fix the words: a lyrics editor with a row per bar, its time and chords,
+  Tab down the song; focusing a row cues the player to that bar. Words
+  typed in stay inside their bar.
 - The page is fetched fresh on every visit with a signal and a bar offers
   a reload when a newer build takes over, so a deploy no longer needs two
   loads to show up.

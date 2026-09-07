@@ -210,6 +210,15 @@
   #genre { margin-top: 2px; }
   .lyrics { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
   .lyrics .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .lyrics-editor { margin-top: 12px; max-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); padding: 8px 10px; }
+  .led-head { display: flex; align-items: center; gap: 12px; padding: 4px 4px 10px; position: sticky; top: -8px; background: var(--bg); z-index: 1; }
+  .led-head span { color: var(--muted); font-size: 13px; flex: 1; }
+  .led-row { display: grid; grid-template-columns: 34px 44px 110px 1fr; gap: 8px; align-items: center; padding: 3px 0; font-size: 13px; }
+  .led-bar { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  .led-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .led-chords { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .led-row input { padding: 6px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 14px; }
+  .led-row input:focus { border-color: var(--accent); outline: none; }
   .bar .lyric { flex-basis: 100%; font-weight: 500; font-size: 14px; color: var(--muted); line-height: 1.3; margin-top: 2px; }
   .bar .lyric.empty { opacity: .35; }
   body.editing .bar .lyric { cursor: text; text-decoration: underline dotted; }
@@ -258,7 +267,7 @@
   @media (max-width: 600px) { #nowplaying { grid-template-columns: repeat(7, 1fr); } .ring { display: none; } }
 
   @media print {
-    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how, .mac, .loopbtn, #edit, #nudge, .editor, .library, .sky, .sample, .vizrow, .viz, .live, .features, .pills { display: none !important; }
+    header, .file-line button, .tile .row, .panel, .actions, .tip, footer, #nowplaying, .how, .mac, .loopbtn, #edit, #nudge, .editor, .library, .sky, .sample, .vizrow, .viz, .live, .features, .pills, .lyrics-editor { display: none !important; }
     body { background: #fff; color: #000; font-size: 12px; }
     .tiles { grid-template-columns: repeat(3, 1fr); }
     .tile, .bar { box-shadow: none; border-color: #bbb; break-inside: avoid; }
@@ -443,10 +452,12 @@
       <div class="lyrics" id="lyrics">
         <div class="controls">
           <button class="btn ghost small" id="transcribe" type="button">Transcribe lyrics on this device</button>
+          <button class="btn ghost small" id="edit-lyrics" type="button" hidden>Fix the words</button>
           <button class="btn ghost small" id="clear-lyrics" type="button" hidden>Clear lyrics</button>
           <span class="hint" id="lyrics-status" aria-live="polite"></span>
         </div>
         <div class="hint" id="lyrics-note"></div>
+        <div class="lyrics-editor" id="lyrics-editor" hidden></div>
       </div>
       <div class="row vizrow"><button class="btn" id="visualize" type="button">▶ Visualize full screen</button><span class="hint">Keyboard driven: 1 2 3 switch, space, arrows, F, Esc.</span></div>
       <audio id="player" controls preload="metadata"></audio>

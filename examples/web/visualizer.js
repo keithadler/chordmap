@@ -107,6 +107,41 @@ export function openVisualizer(opts) {
     ctx.fillStyle = color; ctx.textAlign = align || "center"; ctx.textBaseline = "middle"; ctx.fillText(str, x, y);
   }
 
+  // Words of the bar being sung, the current word bright, the next bar dimmed under it.
+  function lyricsAt(t) {
+    if (!a.lyrics || !a.lyrics.length) return null;
+    let b = a.bars.findIndex((x) => t >= x.start && t < x.end); if (b < 0) return null;
+    const inBar = (i) => a.bars[i] ? a.lyrics.filter((w) => w.start >= a.bars[i].start && w.start < a.bars[i].end) : [];
+    return { cur: inBar(b), next: inBar(b + 1) };
+  }
+  let lastLyric = "";
+  function drawLyrics(t, cx, y, maxW, size, withNext = true) {
+    const L = lyricsAt(t); if (!L || (!L.cur.length && !L.next.length)) { lastLyric = ""; return; }
+    lastLyric = L.cur.map((w) => w.text).join(" ") + (L.next.length ? " / " + L.next.map((w) => w.text).join(" ") : "");
+    const font = (px, weight) => `${weight} ${px}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Inter, system-ui, sans-serif`;
+    // Shrink until the line fits.
+    let px = size;
+    ctx.font = font(px, 700);
+    let line = L.cur.map((w) => w.text).join(" ");
+    while (px > 12 && ctx.measureText(line).width > maxW) { px -= 2; ctx.font = font(px, 700); }
+    const total = ctx.measureText(line).width;
+    let x = cx - total / 2;
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    for (const w of L.cur) {
+      const sung = w.end <= t, now = w.start <= t && w.end > t;
+      ctx.fillStyle = now ? accent() : sung ? ink() : hexA(ink(), 0.55);
+      ctx.font = font(px, now ? 800 : 700);
+      ctx.fillText(w.text, x, y);
+      x += ctx.measureText(w.text + " ").width;
+    }
+    if (withNext && L.next.length) {
+      const nx = L.next.map((w) => w.text).join(" ");
+      let np = Math.round(px * 0.7); ctx.font = font(np, 600);
+      while (np > 10 && ctx.measureText(nx).width > maxW) { np -= 2; ctx.font = font(np, 600); }
+      ctx.fillStyle = hexA(muted(), 0.8); ctx.textAlign = "center"; ctx.fillText(nx, cx, y + px * 1.25);
+    }
+  }
+
   function drawStage(t, w, h) {
     const { s, col } = frame(t, w, h);
     const i = chordIndex(t), cur = a.chords[i], next = a.chords[i + 1];
@@ -125,19 +160,24 @@ export function openVisualizer(opts) {
       ctx.fillStyle = col; ctx.fillRect(m, hy + hs, (w - 2 * m) * Math.max(0, Math.min(1, p)), 3);
     }
     text(`${a.tempo.bpm} BPM · ${a.meter} · ${a.key.name}`, w - m, hy, inline ? 13 : 20, 600, muted(), "right");
-    // The chord.
-    const big = Math.min(w * 0.3, h * 0.42) * (1 + pulse * 0.05);
-    text(cur ? display(cur.label) : "…", w / 2, h * 0.44, big, 800, ink());
-    // Next chord and countdown.
+    // The chord, then the next one with its countdown, then the words, then the beat dots:
+    // each band has its own stretch of the height so nothing lands on anything else.
+    const hasLyrics = !!(a.lyrics && a.lyrics.length);
+    const big = Math.min(w * 0.26, h * (hasLyrics ? 0.34 : 0.42)) * (1 + pulse * 0.05);
+    const chordY = h * (hasLyrics ? 0.38 : 0.44);
+    text(cur ? display(cur.label) : "…", w / 2, chordY, big, 800, ink());
     if (next) {
       const beats = Math.max(1, Math.ceil((next.start - t) / spb));
-      text(`next ${display(next.label)}`, w / 2, h * 0.44 + big * 0.62, Math.min(w * 0.08, h * 0.1), 700, hexA(col, 0.95));
-      text(`in ${beats}`, w / 2, h * 0.44 + big * 0.62 + Math.min(w * 0.08, h * 0.1) * 0.9, Math.min(w * 0.04, h * 0.05), 600, muted());
+      const ns = Math.min(w * 0.07, h * 0.085), is = Math.min(w * 0.035, h * 0.045);
+      const nextY = chordY + big * 0.58 + ns * 0.5;
+      text(`next ${display(next.label)}`, w / 2, nextY, ns, 700, hexA(col, 0.95));
+      text(`in ${beats}`, w / 2, nextY + ns * 0.85, is, 600, muted());
     }
+    if (hasLyrics) drawLyrics(t, w / 2, h * (inline ? 0.8 : 0.79), w - (inline ? 32 : 120), inline ? 17 : Math.min(w * 0.034, 38), !inline);
     // Beat dots.
     const bi = beatIndex(t), pickup = a.bars[0] ? a.bars[0].beats.length % bpb : 0;
     const inBar = bi < 0 ? 0 : ((bi - pickup) % bpb + bpb) % bpb;
-    const r = Math.min(w, h) * 0.018, gap = r * 3.2, x0 = w / 2 - (bpb - 1) * gap / 2, y = h * 0.86;
+    const r = Math.min(w, h) * 0.018, gap = r * 3.2, x0 = w / 2 - (bpb - 1) * gap / 2, y = h * (hasLyrics ? 0.915 : 0.86);
     for (let k = 0; k < bpb; k++) {
       ctx.beginPath(); ctx.arc(x0 + k * gap, y, k === inBar ? r * (1.25 + pulse * 0.5) : r, 0, Math.PI * 2);
       ctx.fillStyle = k === inBar ? col : hexA(ink(), 0.25); ctx.fill();
@@ -163,6 +203,7 @@ export function openVisualizer(opts) {
       ctx.fillStyle = hexA(sc, past ? 0.25 : active ? 0.95 : 0.6); ctx.fill();
       if (x1 - x0 > 40) text(display(c.label), (Math.max(x0, 0) + Math.min(x1, w)) / 2, lane - lift, Math.min(laneH * 0.5, (x1 - x0) * 0.4), 800, past ? hexA(ink(), 0.5) : "#fff");
     }
+    drawLyrics(t, w / 2, lane + laneH * 0.95 + (inline ? 14 : 30), w - (inline ? 32 : 120), inline ? 16 : Math.min(w * 0.03, 34));
     // Now line and header.
     ctx.fillStyle = ink(); ctx.fillRect(nowX - 1.5, lane - laneH, 3, laneH * 2);
     const cur = a.chords[chordIndex(t)];
@@ -216,6 +257,7 @@ export function openVisualizer(opts) {
     // The chord, small and calm in the centre.
     text(cur ? displaySounding(cur.label) : "", cx, cy, Math.min(w, h) * 0.11, 800, ink());
     if (s) text(`${s.label} · ${s.guess}`, cx, cy + Math.min(w, h) * 0.09, 16, 600, muted());
+    drawLyrics(t, cx, h - (inline ? 34 : 90), w - (inline ? 32 : 160), inline ? 15 : Math.min(w * 0.028, 30));
   }
 
   function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
@@ -226,7 +268,7 @@ export function openVisualizer(opts) {
   }
 
   // Debug hook for tests: live chroma and energy.
-  window.__vizDebug = () => ({ chroma: Array.from(chroma).map((v) => +v.toFixed(2)), energy: +energy.toFixed(3), analyser: !!analyser, ctxState: audioCtx && audioCtx.state });
+  window.__vizDebug = () => ({ chroma: Array.from(chroma).map((v) => +v.toFixed(2)), energy: +energy.toFixed(3), analyser: !!analyser, ctxState: audioCtx && audioCtx.state, style, lyric: lastLyric });
   let last = performance.now();
   function loop(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;

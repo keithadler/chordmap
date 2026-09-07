@@ -129,6 +129,8 @@ with the right amount of trust.
   processed vocals, and other languages come out wrong. Treat it as a
   draft and fix bars in edit mode.
 - Words are attached to bars by when they start, so a word sung across a
-  bar line sits in the bar it began in.
+  bar line sits in the bar it began in. Words you type into a bar are spread
+  evenly across it; the visualizer lights them on that even grid, not on
+  the real singing.
 - The model is a 76 MB download the first time. On WebGPU a four-minute
   song takes about a minute; on CPU WebAssembly several minutes.

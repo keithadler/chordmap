@@ -652,10 +652,12 @@ function renderLyricsPanel() {
   const a = state.analysis; if (!a) return;
   const has = a.lyrics && a.lyrics.length;
   $("lyrics-note").textContent = has
-    ? a.lyrics.length + " words. A draft from the model: switch on Edit chart and click any bar's words to fix them."
+    ? a.lyrics.length + " words. A draft from the model: Fix the words opens a row per bar, or switch on Edit chart and click any bar's words. They show under the chords, in the footer and in the visualizers."
     : "Whisper runs on this device, in your browser. Nothing is uploaded: the model is a " + LYRICS_MODEL.mb + " MB download the first time, cached after. " + (stemsAvailable().vocals ? "It will listen to the separated vocals." : "Separate the vocals first for much better words; otherwise it listens to the whole mix.");
   $("transcribe").textContent = has ? "Transcribe again on this device" : "Transcribe lyrics on this device";
   $("clear-lyrics").hidden = !has;
+  $("edit-lyrics").hidden = !state.analysis.bars.length;
+  $("edit-lyrics").textContent = has ? "Fix the words" : "Type the words";
   $("lyrics").hidden = state.shared && !has;
 }
 $("transcribe").addEventListener("click", async () => {
@@ -682,7 +684,39 @@ $("transcribe").addEventListener("click", async () => {
   } catch (err) { hideProgress(); setLyricsStatus("Transcription failed: " + (err.message || err)); }
   btn.disabled = false;
 });
-$("clear-lyrics").addEventListener("click", () => { delete state.analysis.lyrics; touched(); setLyricsStatus(""); render(); });
+$("clear-lyrics").addEventListener("click", () => { delete state.analysis.lyrics; touched(); setLyricsStatus(""); closeLyricsEditor(); render(); });
+// A row per bar: the time, the chords, and the words to fix. Tab moves down the song.
+function setBarWords(barIndex, text) {
+  const a = state.analysis, bar = a.bars[barIndex];
+  const rest = (a.lyrics || []).filter((w) => !(w.start >= bar.start && w.start < bar.end));
+  const parts = text.trim() ? text.trim().split(/\s+/) : [];
+  const step = (bar.end - bar.start) / Math.max(1, parts.length);
+  // Never round a word to before the bar it belongs to.
+  const fresh = parts.map((p, k) => ({ text: p, start: Math.max(bar.start, Math.round((bar.start + k * step) * 1000) / 1000), end: Math.round((bar.start + (k + 1) * step - 0.05) * 1000) / 1000 }));
+  a.lyrics = rest.concat(fresh).sort((x, y) => x.start - y.start);
+  touched();
+}
+function openLyricsEditor() {
+  const a = state.analysis; if (!a) return;
+  if (!a.lyrics) a.lyrics = [];
+  const box = $("lyrics-editor"); box.hidden = false; box.innerHTML = "";
+  const head = document.createElement("div"); head.className = "led-head";
+  head.innerHTML = `<b>Fix the words</b><span>One row per bar. Type what is sung in that bar; words are spread across the bar. Tab moves to the next bar.</span><button type="button" class="btn small" id="led-done">Done</button>`;
+  box.appendChild(head);
+  a.bars.forEach((bar, i) => {
+    const row = document.createElement("label"); row.className = "led-row";
+    const words = wordsBetween(a.lyrics, bar.start, bar.end).map((w) => w.text).join(" ");
+    let prev = null; const chords = bar.beats.filter((b) => { const k = b !== prev; prev = b; return k; }).map(display).join(" ");
+    row.innerHTML = `<span class="led-bar">${i + 1}</span><span class="led-time">${fmtTime(bar.start)}</span><span class="led-chords">${esc(chords)}</span><input type="text" data-bar="${i}" value="${esc(words)}" placeholder="…">`;
+    box.appendChild(row);
+  });
+  box.addEventListener("change", (e) => { const inp = e.target.closest("input[data-bar]"); if (!inp) return; setBarWords(+inp.dataset.bar, inp.value); renderChart(); });
+  box.addEventListener("focusin", (e) => { const inp = e.target.closest("input[data-bar]"); if (!inp || state.shared) return; const p = $("player"); if (!p.paused) return; p.currentTime = a.bars[+inp.dataset.bar].start; });
+  $("led-done").addEventListener("click", closeLyricsEditor);
+  box.querySelector("input") && box.querySelector("input").focus();
+}
+function closeLyricsEditor() { const box = $("lyrics-editor"); box.hidden = true; box.innerHTML = ""; render(); }
+$("edit-lyrics").addEventListener("click", () => { if ($("lyrics-editor").hidden) openLyricsEditor(); else closeLyricsEditor(); });
 function setLyricsStatus(t) { $("lyrics-status").textContent = t; }
 function editBarLyric(el, barIndex) {
   const a = state.analysis, bar = a.bars[barIndex];
@@ -692,14 +726,8 @@ function editBarLyric(el, barIndex) {
   let done = false;
   const finish = () => {
     if (done) return; done = true;
-    const text = inp.value.trim();
-    // Replace this bar's words, spread evenly across the bar.
-    const rest = a.lyrics.filter((w) => !(w.start >= bar.start && w.start < bar.end));
-    const parts = text ? text.split(/\s+/) : [];
-    const step = (bar.end - bar.start) / Math.max(1, parts.length);
-    const fresh = parts.map((p, k) => ({ text: p, start: +(bar.start + k * step).toFixed(2), end: +(bar.start + (k + 1) * step - 0.05).toFixed(2) }));
-    a.lyrics = rest.concat(fresh).sort((x, y) => x.start - y.start);
-    touched(); renderChart();
+    setBarWords(barIndex, inp.value);
+    renderChart();
   };
   inp.addEventListener("blur", finish); inp.addEventListener("change", finish);
   inp.addEventListener("keydown", (k) => { if (k.key === "Enter") finish(); if (k.key === "Escape") { inp.value = words.map((w) => w.text).join(" "); finish(); } });
