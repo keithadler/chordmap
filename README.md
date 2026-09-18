@@ -1,5 +1,9 @@
 # chordmap
 
+[![CI](https://github.com/keithadler/chordmap/actions/workflows/ci.yml/badge.svg)](https://github.com/keithadler/chordmap/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/keithadler/chordmap?sort=semver)](https://github.com/keithadler/chordmap/releases/latest)
+[![License](https://img.shields.io/github/license/keithadler/chordmap)](https://github.com/keithadler/chordmap/blob/main/LICENSE)
+
 **Use it: [keithadler.github.io/chordmap](https://keithadler.github.io/chordmap/)**. Drop a song, get the chart. Nothing is uploaded.
 
 Tempo, key, chords, sections, a capo suggestion and stems from any audio
