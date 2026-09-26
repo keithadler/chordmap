@@ -269,7 +269,7 @@ struct HistorySidebar: View {
     var body: some View {
         List(selection: Binding(get: { ear.viewing?.id }, set: { id in if let l = ear.listens.first(where: { $0.id == id }) { ear.show(l) } })) {
             Section("Heard before") {
-                if ear.listens.isEmpty { Text("Nothing yet. Every listen lands here.").foregroundStyle(.secondary) }
+                if ear.listens.isEmpty { Text("Nothing yet. Every listen lands here.").foregroundStyle(.secondary).lineLimit(3).fixedSize(horizontal: false, vertical: true) }
                 ForEach(ear.listens.reversed()) { l in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(l.title).lineLimit(1)

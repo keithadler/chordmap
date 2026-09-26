@@ -31,7 +31,7 @@ enum Screenshots {
             for (name, viewing) in [("live", false), ("listen", true)] {
                 if viewing { ear.viewing = ear.listens.last; ear.whole = nil; ear.window = nil; ear.listening = false; ear.chord = nil }
                 else { ear.viewing = nil; ear.whole = nil; ear.window = live; ear.listening = true; ear.capo = nil; ear.chord = "Bb"; ear.elapsed = 38 }
-                let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 700), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+                let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 700), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
                 w.title = "Chordmap for Mac"
                 w.contentView = NSHostingView(rootView: MainView().environmentObject(ear).frame(width: 1000, height: 700))
                 w.center(); w.makeKeyAndOrderFront(nil)

@@ -18,8 +18,12 @@
 
 ## Mac app 1.0.1 (2026-09-25)
 
-Built and tested on macOS 27. The app and the chordmap engine inside it
-are unchanged from 1.0.0, so every chart comes out exactly as it did.
+Built and tested on macOS 27, and drawn in the current macOS look on
+macOS 26 and later. The chordmap engine inside it is unchanged from 1.0.0,
+so every chart comes out exactly as it did.
+
+- The sidebar's empty line, "Nothing yet. Every listen lands here.", wraps
+  instead of being cut off in the narrower macOS 27 sidebar.
 
 ## Mac app 1.0.0 (2026-09-06)
 
