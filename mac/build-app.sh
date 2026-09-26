@@ -27,7 +27,9 @@ for triple in $ARCHS; do
   echo "Building ${triple}..."
   # Each slice gets its own scratch folder; sharing one confuses SwiftPM's build database.
   swift build -c release --triple "$triple" --scratch-path ".build/slices/$triple" 2>&1 | grep -vE '^\[|Compiling|Emitting|Linking|Build complete|Planning|Write' || true
-  slice=".build/slices/$triple/$triple/release/ChordMap"
+  # Ask SwiftPM where the binary went: Swift 6.4's build system (Xcode 27) puts it under
+  # out/Products/Release, older ones under <triple>/release.
+  slice="$(swift build -c release --triple "$triple" --scratch-path ".build/slices/$triple" --show-bin-path)/ChordMap"
   [ -x "$slice" ] || { echo "build failed for $triple"; exit 1; }
   # Refuse a stale slice: it must be newer than every source file.
   newest_src=$(find Sources -name '*.swift' -newer "$slice" | head -1)

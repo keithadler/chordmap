@@ -16,6 +16,11 @@
   the lyric line in ChordPro and the text sheet, per-bar correction in edit
   mode, kept with the chart and the share link.
 
+## Mac app 1.0.1 (2026-09-25)
+
+Built and tested on macOS 27. The app and the chordmap engine inside it
+are unchanged from 1.0.0, so every chart comes out exactly as it did.
+
 ## Mac app 1.0.0 (2026-09-06)
 
 Chordmap for Mac, in `mac/`: the engine as a macOS app that hears what the Mac plays through a Core Audio tap (or an input device) and charts it live every two seconds, with the capo picker, bars by section, the chord sheet, and a history of listens. Swift over a small C bridge to the crate; Apple Silicon build, signed by its author.

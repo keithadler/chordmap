@@ -4,7 +4,7 @@ The chordmap engine as a Mac app: play a song in any app on the Mac and see the 
 
 ## Download
 
-**[Download Chordmap-for-Mac-1.0.0.dmg](https://github.com/keithadler/chordmap/releases/download/mac-v1.0.0/Chordmap-for-Mac-1.0.0.dmg)** (macOS 14 or later, Apple Silicon)
+**[Download Chordmap-for-Mac-1.0.1.dmg](https://github.com/keithadler/chordmap/releases/download/mac-v1.0.1/Chordmap-for-Mac-1.0.1.dmg)** (macOS 14 or later, Apple Silicon)
 
 Open the DMG, drag the app to Applications, open it. The first time, macOS says the app is from an unidentified developer: right-click the app, choose Open, then Open again. That is once.
 
